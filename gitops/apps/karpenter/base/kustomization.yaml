@@ -16,7 +16,7 @@ helmCharts:
       replicas: 1
       settings:
         clusterName: tnt-eu-observability-dev-eks
-        clusterEndpoint: CLUSTER_ENDPOINT_PLACEHOLDER
+        clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
         interruptionQueue: tnt-eu-observability-dev-eks-karpenter
       logLevel: debug
       webhook:
