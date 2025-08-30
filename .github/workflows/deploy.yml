@@ -1,0 +1,37 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'gitops/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-central-1
+        
+    - name: Install kubectl
+      run: |
+        curl -LO https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+    - name: Connect to EKS
+      run: |
+        aws eks update-kubeconfig --name tnt-eu-observability-dev-eks --region eu-central-1
+        
+    - name: Deploy applications
+      run: |
+        kubectl apply -f gitops/clusters/eks-dev/
