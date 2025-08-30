@@ -91,6 +91,9 @@ module "eks" {
   enable_cluster_creator_admin_permissions = each.value.enable_cluster_creator_admin_permissions
   enable_irsa                              = each.value.enable_irsa
   
+  # Enable Pod Identity authentication mode
+  authentication_mode = "API_AND_CONFIG_MAP"
+  
   # Network configuration
   vpc_id     = module.vpc[each.value.vpc_name].vpc_id
   subnet_ids = module.vpc[each.value.vpc_name].private_subnets
