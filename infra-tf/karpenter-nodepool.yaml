@@ -1,0 +1,94 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: default
+  annotations:
+    kubernetes.io/description: "General purpose NodePool for generic workloads"
+spec:
+  # v1 requires both fields under disruption
+disruption:
+  consolidationPolicy: WhenEmptyOrUnderutilized
+  consolidateAfter: 30s
+
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c","m","r","t"]  # Only c,m,r,t-series instances
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["nano","micro","small","medium"]  # Only small size (t3.small, t3a.small, etc.)
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot","on-demand"]  # Changed from spot to on-demand
+        # Optional but recommended (match docs):
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+  
+spec:
+  # The IAM role name (instance profile) Karpenter attaches to new nodes
+  role: "KarpenterNodeRole-tnt-eu-observability-dev-eks-main"  # ← put your real node role/instance profile name
+
+  # Choose AMI (either amiFamily or selector terms)
+  amiSelectorTerms:
+    - alias: bottlerocket@latest # Bottlerocket
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "tnt-eu-observability-dev-eks-main"
+
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "tnt-eu-observability-dev-eks-main"
+
+# apiVersion: karpenter.sh/v1beta1
+# kind: NodePool
+# metadata:
+#   name: default
+# spec:
+#   template:
+#     spec:
+#       requirements:
+#         - key: karpenter.k8s.aws/instance-category
+#           operator: In
+#           values: ["c", "m", "r"]
+#         - key: karpenter.k8s.aws/instance-size
+#           operator: In
+#           values: ["nano", "micro", "small", "medium"]
+#         - key: karpenter.sh/capacity-type
+#           operator: In
+#           values: ["spot"]          # ["spot","on-demand"]
+#       nodeClassRef:
+#         name: default
+---
+# apiVersion: karpenter.k8s.aws/v1beta1
+# kind: EC2NodeClass
+# metadata:
+#   name: default
+# spec:
+#   amiFamily: AL2
+#   subnetSelectorTerms:
+#     - tags:
+#         karpenter.sh/discovery: "tnt-eu-observability-dev-eks-main"   # replace with your cluster name
+#   securityGroupSelectorTerms:
+#     - tags:
+#         karpenter.sh/discovery: "tnt-eu-observability-dev-eks-main"   # replace with your cluster name
+  
+#   # Instance profile (created by Karpenter module)
+#   role: "KarpenterNodeInstanceProfile-tnt-eu-observability-dev-eks-main"
+  

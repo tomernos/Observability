@@ -39,7 +39,7 @@ cat ~/.ssh/argocd_observability.pub
 
 ### 2. Add Deploy Key to GitHub
 
-1. Go to your GitHub repository: https://github.com/Tomerkakou/Observability
+1. Go to your GitHub repository: https://github.com/tomernos/Observability
 2. Settings → Deploy keys
 3. Click "Add deploy key"
 4. Title: "ArgoCD GitOps Access"

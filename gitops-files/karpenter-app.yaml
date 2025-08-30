@@ -3,17 +3,23 @@ kind: Application
 metadata:
   name: karpenter
   namespace: argocd
+  labels:
+    app: karpenter
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
+  
   source:
-    repoURL: git@github.com:tomernos/Observability.git
-    targetRevision: HEAD
-    path: gitops/apps/karpenter/overlays/dev
+    # This will point to your GitHub repo
+    repoURL: 'git@github.com:YOUR_USERNAME/k8s-gitops.git'
+    path: apps/karpenter/overlays/dev
+    targetRevision: main
+  
   destination:
-    server: https://kubernetes.default.svc
-    namespace: karpenter
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  
   syncPolicy:
     automated:
       prune: true
@@ -21,3 +27,5 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  
+  revisionHistoryLimit: 10
