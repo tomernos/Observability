@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  labels:
+    app: karpenter
+spec:
+  # Project (use default for learning)
+  project: default
+  
+  # Source: where to get the Karpenter chart
+  source:
+    repoURL: 'oci://public.ecr.aws/karpenter'
+    chart: karpenter
+    targetRevision: 1.6.0
+    helm:
+      values: |
+        replicas: 1
+        settings:
+          clusterName: tnt-eu-observability-dev-eks
+          clusterEndpoint: https://YOUR_CLUSTER_ENDPOINT
+          aws:
+            defaultInstanceProfile: karp-tnt-eu-d-eks
+        logLevel: debug
+        webhook:
+          enabled: false
+  
+  # Destination: where to deploy
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  
+  # Sync policy: how ArgoCD manages deployment
+  syncPolicy:
+    # Automatically sync when Git changes
+    automated:
+      prune: true      # Remove resources not in Git
+      selfHeal: true   # Fix drift automatically
+    syncOptions:
+      - CreateNamespace=true
+  
+  # Keep history of deployments
+  revisionHistoryLimit: 5

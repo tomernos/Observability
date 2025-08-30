@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karpenter-values
+  namespace: karpenter
+data:
+  values.yaml: |
+    replicas: 2
+    settings:
+      clusterName: tnt-eu-observability-dev-eks
+      clusterEndpoint: CLUSTER_ENDPOINT_PLACEHOLDER
+      interruptionQueue: tnt-eu-observability-dev-eks-karpenter
+    logLevel: info
+    webhook:
+      enabled: false
