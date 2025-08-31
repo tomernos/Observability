@@ -27,6 +27,10 @@ output "karpenter" {
 	description = "Karpenter module outputs"
 }
 
+# output "aws_ecrpublic_authorization_token" {
+# 	value = data.aws_ecrpublic_authorization_token.token
+# }
+
 
 # # Debug outputs for Karpenter module (temporary)
 # output "karpenter_outputs" {

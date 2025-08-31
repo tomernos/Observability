@@ -1,3 +1,7 @@
+data "aws_ecrpublic_authorization_token" "token" {
+  provider = aws.virginia
+}
+
 module "vpc" {
   for_each = var.vpcs
   source   = "terraform-aws-modules/vpc/aws"
@@ -51,7 +55,7 @@ module "ecr" {
   
   repository_name                   = "${local.region_prefix}-${each.key}"
   repository_read_write_access_arns = [data.aws_caller_identity.current.arn]
-  create_lifecycle_policy           = each.value.create_lifecycle_policy
+  create_lifecycle_policy           = true
   
   repository_lifecycle_policy = jsonencode({
     rules = [
@@ -77,19 +81,17 @@ module "ecr" {
 module "eks" {
   for_each = var.eks_clusters
   source   = "terraform-aws-modules/eks/aws"
-  version  = "20.33.1"
+  version  = "21.1.5"  # Match Karpenter module version
   
-  cluster_name    = "${local.region_prefix}-${each.key}"
-  cluster_version = each.value.cluster_version
-  
-  # Cluster endpoint configuration
-  cluster_endpoint_public_access       = each.value.cluster_endpoint_public_access
-  cluster_endpoint_private_access      = each.value.cluster_endpoint_private_access
-  cluster_endpoint_public_access_cidrs = each.value.cluster_endpoint_public_access_cidrs
-  
+  name    = "${local.region_prefix}-${each.key}"
+  kubernetes_version = each.value.cluster_version
+
+  endpoint_public_access       = each.value.cluster_endpoint_public_access
+  endpoint_private_access      = each.value.cluster_endpoint_private_access
+  endpoint_public_access_cidrs = each.value.cluster_endpoint_public_access_cidrs
+
   # Admin permissions
-  enable_cluster_creator_admin_permissions = each.value.enable_cluster_creator_admin_permissions
-  enable_irsa                              = each.value.enable_irsa
+  enable_cluster_creator_admin_permissions  = each.value.enable_cluster_creator_admin_permissions
   
   # Enable Pod Identity authentication mode
   authentication_mode = "API_AND_CONFIG_MAP"
@@ -99,7 +101,7 @@ module "eks" {
   subnet_ids = module.vpc[each.value.vpc_name].private_subnets
 
   # EKS Addons - using configuration from tfvars
-  cluster_addons = each.value.cluster_addons
+  addons = each.value.cluster_addons
   
   # EKS Managed Node Groups - using configuration from tfvars
   eks_managed_node_groups = {
@@ -114,7 +116,7 @@ module "eks" {
       
       # Labels and taints for node specialization - Kubernetes standard approach
       labels = ng_config.labels
-      taints = ng_config.taints
+      #taints = ng_config.taints
       
   #     # This is not required - demonstrates how to pass additional configuration to nodeadm
   #     # Ref https://awslabs.github.io/amazon-eks-ami/nodeadm/doc/api/
@@ -152,28 +154,31 @@ module "eks" {
 module "karpenter" {
   for_each = { for k, v in var.eks_clusters : k => v if v.enable_karpenter }
   source   = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version  = "20.33.1"
+  version  = "21.1.5"
 
   cluster_name = module.eks[each.key].cluster_name
   
-  enable_v1_permissions  = each.value.karpenter_enable_v1_permissions
+  #enable_v1_permissions  = each.value.karpenter_enable_v1_permissions
   
   # Enable EKS Pod Identity for Karpenter (modern way vs IRSA)
-  enable_pod_identity    = each.value.karpenter_enable_pod_identity
+  #enable_pod_identity    = each.value.karpenter_enable_pod_identity
   create_pod_identity_association = true
   
   # Enable spot instance permissions - REQUIRED for spot pricing data
   enable_spot_termination = true
   
   # Create interruption queue with proper tags
-  create_instance_profile = true
+  #create_instance_profile = true
   
   # Rely on module's built-in v1 policy (no extra statements to stay under 6 KB limit)
   
   # Shorten IAM role names to avoid 38-char limit
   # Use abbreviated naming: karp-<tenant>-<region>-<env>-<cluster_key>
-  node_iam_role_name = "karp-${var.tenant_prefix}-${substr(var.aws_region, 0, 2)}-${substr(var.environment, 0, 1)}-${each.key}"
+  node_iam_role_name = "${local.cluster_name}"
   node_iam_role_use_name_prefix = false
+
+  #namespace       = "karpenter"
+  #service_account = "karpenter"
 
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -182,20 +187,15 @@ module "karpenter" {
   tags = merge(local.tags, { Component = "karpenter" })
 }
 
-# Data source for ECR public authentication
-data "aws_ecrpublic_authorization_token" "token" {
-  provider = aws.virginia
-}
-
 # Kubernetes namespaces for EKS clusters
-resource "kubernetes_namespace_v1" "this" {
-  for_each = var.eks_namespaces
+# resource "kubernetes_namespace_v1" "this" {
+#   for_each = var.eks_namespaces
   
-  metadata {
-    name   = each.key
-    labels = each.value.labels
-  }
-}
+#   metadata {
+#     name   = each.key
+#     labels = each.value.labels
+#   }
+# }
 
 # Helm charts deployment - ArgoCD and other charts
 resource "helm_release" "this" {

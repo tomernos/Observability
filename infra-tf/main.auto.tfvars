@@ -55,7 +55,7 @@ eks_clusters = {
                     # "observability.io/os" = "linux"
                     "karpenter.sh/controller" = "true"
                 }
-                taints = []  # No taints for simplicity
+                taints = {}  # No taints for simplicity
                 tags = { NodeGroup = "system" }
             }
         }
@@ -107,9 +107,9 @@ helm = {
 }
 
 eks_namespaces = {
-    argocd = {
-        labels = {
-            name = "argocd"
-        }
-    }
+    # argocd = {
+    #     labels = {
+    #         name = "argocd"
+    #     }
+    # }
 }
