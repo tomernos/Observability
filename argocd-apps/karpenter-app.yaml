@@ -11,7 +11,7 @@ spec:
   
   # Source: where to get the Karpenter chart
   source:
-    repoURL: 'oci://public.ecr.aws/karpenter'
+    repoURL: 'github.com/tomernos/Observability/karpenter'
     chart: karpenter
     targetRevision: 1.6.0
     helm:
@@ -19,7 +19,7 @@ spec:
         replicas: 1
         settings:
           clusterName: tnt-eu-observability-dev-eks
-          clusterEndpoint: https://YOUR_CLUSTER_ENDPOINT
+          clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
           aws:
             defaultInstanceProfile: karp-tnt-eu-d-eks
         logLevel: debug

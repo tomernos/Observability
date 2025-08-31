@@ -14,6 +14,20 @@ output "availability_zones" {
 	description = "AWS Availability Zones"
 }
 
+output "karpenter" {
+	value = {
+		for k, v in module.karpenter : k => {
+			service_account = v.service_account
+			iam_role_arn = v.iam_role_arn
+			pod_identity_association_arn = try(v.pod_identity_association_arn, "not_available")
+			queue_name = try(v.queue_name, "not_available")
+			node_instance_profile_name = try(v.node_instance_profile_name, "not_available")
+		}
+	}
+	description = "Karpenter module outputs"
+}
+
+
 # # Debug outputs for Karpenter module (temporary)
 # output "karpenter_outputs" {
 #   value = try({
