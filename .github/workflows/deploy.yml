@@ -32,6 +32,6 @@ jobs:
       run: |
         aws eks update-kubeconfig --name tnt-eu-observability-dev-eks --region eu-central-1
         
-    - name: Deploy applications
-      run: |
-        kubectl apply -f gitops/clusters/eks-dev/
+    #- name: Deploy applications
+    #  run: |
+    #    kubectl apply -f gitops/clusters/eks-dev/
