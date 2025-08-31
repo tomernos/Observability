@@ -3,14 +3,25 @@ kind: Application
 metadata:
   name: karpenter
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  labels:
+    app: karpenter
 spec:
   project: default
   source:
-    repoURL: git@github.com:tomernos/Observability.git
-    targetRevision: HEAD
-    path: gitops/apps/karpenter/overlays/dev
+    repoURL: https://charts.karpenter.sh
+    chart: karpenter
+    targetRevision: 0.16.3
+    helm:
+      values: |
+        replicas: 1
+        settings:
+          clusterName: tnt-eu-observability-dev-eks
+          clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
+          interruptionQueue: tnt-eu-observability-dev-eks-karpenter
+        serviceAccount:
+          create: true
+          name: karpenter
+        logLevel: info
   destination:
     server: https://kubernetes.default.svc
     namespace: karpenter
@@ -20,4 +31,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true

@@ -1,26 +1,33 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-namespace: kube-system
-
-resources:
-  - karpenter-nodepool.yaml
-
-helmCharts:
-  - name: karpenter
-    repo: oci://public.ecr.aws/karpenter
-    version: 1.6.0
-    namespace: kube-system
-    releaseName: karpenter
-    valuesInline:
-      replicas: 1
-      settings:
-        clusterName: tnt-eu-observability-dev-eks
-        clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
-        aws:
-          defaultInstanceProfile: karp-tnt-eu-d-eks
-      logLevel: debug
-      webhook:
-        enabled: false
-      nodeSelector:
-        karpenter.sh/controller: 'true'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  labels:
+    app: karpenter
+spec:
+  project: default
+  source:
+    repoURL: https://charts.karpenter.sh
+    chart: karpenter
+    targetRevision: 1.6.0
+    helm:
+      values: |
+        replicas: 1
+        settings:
+          clusterName: tnt-eu-observability-dev-eks
+          clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
+          interruptionQueue: tnt-eu-observability-dev-eks-karpenter
+        serviceAccount:
+          create: true
+          name: karpenter
+        logLevel: info
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: karpenter
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
