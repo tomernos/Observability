@@ -29,7 +29,7 @@ eks_clusters = {
         cluster_endpoint_private_access = false
         cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
         enable_cluster_creator_admin_permissions = true
-        enable_irsa = true
+        #enable_irsa = true
         
         # Karpenter - Modern node autoscaling
         # Karpenter is AWS's next-generation autoscaler that's more efficient than traditional node groups
@@ -42,11 +42,11 @@ eks_clusters = {
         eks_managed_node_groups = {
             # System node group - 2 nodes (one for system, one for Karpenter)
             system = {
-                instance_types  = ["t3.medium"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
+                instance_types  = ["t3.medium", "m5.large"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
                 min_size        = 2
                 desired_size    = 2
                 max_size        = 10
-                capacity_type   = "SPOT"   # Cost-effective for learning
+                capacity_type   = "ON_DEMAND"   # Reliable for system workloads
                 ami_type        = "BOTTLEROCKET_x86_64"
                 disk_size       = 20
                 labels = { 

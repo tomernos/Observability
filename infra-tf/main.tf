@@ -9,7 +9,7 @@ module "vpc" {
 
   # Details
   name            = "${local.region_prefix}-vpc"
-  cidr      = lookup(each.value, "cidr", "10.0.0.0/16")
+  cidr            = lookup(each.value, "cidr", "10.0.0.0/16")
   azs             = lookup(each.value, "azs", local.azs) // local.azs
   private_subnets = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k + 2)]
   public_subnets  = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k)]
@@ -22,10 +22,14 @@ module "vpc" {
   enable_nat_gateway = lookup(each.value, "enable_nat_gateway", true)
   single_nat_gateway = lookup(each.value, "single_nat_gateway", true)
 
+  ## VPC Endpoints for EKS - speeds up private subnet communication
+  #enable_vpn_gateway = false
+  #enable_flow_log    = false
 
   # DNS Parameters in VPC
   enable_dns_hostnames = lookup(each.value, "enable_dns_hostnames", true)
   enable_dns_support   = lookup(each.value, "enable_dns_support", true)
+  
   # Additional tags for the VPC
   tags     = lookup(each.value, "tags", local.tags)
   vpc_tags = lookup(each.value, "vpc_tags", {})
@@ -93,8 +97,8 @@ module "eks" {
   # Admin permissions
   enable_cluster_creator_admin_permissions  = each.value.enable_cluster_creator_admin_permissions
   
-  # Enable Pod Identity authentication mode
-  authentication_mode = "API_AND_CONFIG_MAP"
+  ## Enable Pod Identity authentication mode
+  #authentication_mode = "API_AND_CONFIG_MAP"
   
   # Network configuration
   vpc_id     = module.vpc[each.value.vpc_name].vpc_id
@@ -142,10 +146,9 @@ module "eks" {
   }
 
   # Tag the shared node security group for Karpenter securityGroupSelectorTerms discovery
-  node_security_group_tags = {
-    "karpenter.sh/discovery" = local.cluster_name
-  }
-
+  node_security_group_tags = merge(local.tags, {
+    "karpenter.sh/discovery" = "${local.cluster_name}"
+  })
   tags = merge(local.tags, each.value.tags, { Component = "kubernetes" })
 }
 
@@ -160,9 +163,6 @@ module "karpenter" {
   
   #enable_v1_permissions  = each.value.karpenter_enable_v1_permissions
   
-  # Enable EKS Pod Identity for Karpenter (modern way vs IRSA)
-  #enable_pod_identity    = each.value.karpenter_enable_pod_identity
-  create_pod_identity_association = true
   
   # Enable spot instance permissions - REQUIRED for spot pricing data
   enable_spot_termination = true
@@ -176,6 +176,10 @@ module "karpenter" {
   # Use abbreviated naming: karp-<tenant>-<region>-<env>-<cluster_key>
   node_iam_role_name = "${local.cluster_name}"
   node_iam_role_use_name_prefix = false
+
+  # Enable EKS Pod Identity for Karpenter (modern way vs IRSA)
+  #enable_pod_identity    = each.value.karpenter_enable_pod_identity
+  create_pod_identity_association = true
 
   #namespace       = "karpenter"
   #service_account = "karpenter"
