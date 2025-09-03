@@ -11,21 +11,21 @@ provider "aws" {
 
 # EKS cluster authentication token - generated dynamically from the cluster
 data "aws_eks_cluster_auth" "main" {
-  name = module.eks["eks"].cluster_name
+  name = module.eks.cluster_name
 }
 
 # Kubernetes provider - uses EKS module outputs for authentication
 provider "kubernetes" {
-  host                   = module.eks["eks"].cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks["eks"].cluster_certificate_authority_data)
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   token                  = data.aws_eks_cluster_auth.main.token
 }
 
 # Helm provider - uses EKS module outputs for authentication
 provider "helm" {
   kubernetes = {
-    host                   = module.eks["eks"].cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks["eks"].cluster_certificate_authority_data)
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
     token                  = data.aws_eks_cluster_auth.main.token
   }
 }
