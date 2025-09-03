@@ -5,14 +5,16 @@ data "aws_ecrpublic_authorization_token" "token" {
 module "vpc" {
   for_each = var.vpcs
   source   = "terraform-aws-modules/vpc/aws"
-  version  = "5.19.0"
+  version  = "~> 6.0"
 
   # Details
   name            = "${local.region_prefix}-vpc"
   cidr            = lookup(each.value, "cidr", "10.0.0.0/16")
   azs             = lookup(each.value, "azs", local.azs) // local.azs
-  private_subnets = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k + 2)]
   public_subnets  = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k)]
+  private_subnets = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k + length(local.azs))]
+  intra_subnets   = [for k, v in local.azs : cidrsubnet(each.value.cidr, 8, k + (2 * length(local.azs)))]
+
   # database_subnets                   = lookup(each.value,"database_subnets",null)
   # create_database_subnet_group       = lookup(each.value,"create_database_subnet_group",null)
   # create_database_subnet_route_table = lookup(each.value,"create_database_subnet_route_table",null)
@@ -32,7 +34,6 @@ module "vpc" {
   
   # Additional tags for the VPC
   tags     = lookup(each.value, "tags", local.tags)
-  vpc_tags = lookup(each.value, "vpc_tags", {})
   
   # Karpenter discovery tags for subnets
   public_subnet_tags = {
@@ -52,114 +53,164 @@ module "vpc" {
   #   map_public_ip_on_launch = true
 }
 
-module "ecr" {
-  for_each = var.ecr_repositories
-  source   = "terraform-aws-modules/ecr/aws"
-  version  = "2.3.1"
+# module "ecr" {
+#   for_each = var.ecr_repositories
+#   source   = "terraform-aws-modules/ecr/aws"
+#   version  = "2.3.1"
   
-  repository_name                   = "${local.region_prefix}-${each.key}"
-  repository_read_write_access_arns = [data.aws_caller_identity.current.arn]
-  create_lifecycle_policy           = true
+#   repository_name                   = "${local.region_prefix}-${each.key}"
+#   repository_read_write_access_arns = [data.aws_caller_identity.current.arn]
+#   create_lifecycle_policy           = true
   
-  repository_lifecycle_policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1,
-        description  = "Keep last ${each.value.max_image_count} images",
-        selection = {
-          tagStatus     = "tagged",
-          tagPrefixList = each.value.tag_prefix_list,
-          countType     = "imageCountMoreThan",
-          countNumber   = each.value.max_image_count
-        },
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
+#   repository_lifecycle_policy = jsonencode({
+#     rules = [
+#       {
+#         rulePriority = 1,
+#         description  = "Keep last ${each.value.max_image_count} images",
+#         selection = {
+#           tagStatus     = "tagged",
+#           tagPrefixList = each.value.tag_prefix_list,
+#           countType     = "imageCountMoreThan",
+#           countNumber   = each.value.max_image_count
+#         },
+#         action = {
+#           type = "expire"
+#         }
+#       }
+#     ]
+#   })
   
-  tags = merge(local.tags, each.value.tags)
-}
+#   tags = merge(local.tags, each.value.tags)
+# }
 
 module "eks" {
-  for_each = var.eks_clusters
   source   = "terraform-aws-modules/eks/aws"
-  version  = "21.1.5"  # Match Karpenter module version
-  
-  name    = "${local.region_prefix}-${each.key}"
-  kubernetes_version = each.value.cluster_version
 
-  endpoint_public_access       = each.value.cluster_endpoint_public_access
-  endpoint_private_access      = each.value.cluster_endpoint_private_access
-  endpoint_public_access_cidrs = each.value.cluster_endpoint_public_access_cidrs
+  name               = local.cluster_name
+  kubernetes_version = "1.33"
 
-  # Admin permissions
-  enable_cluster_creator_admin_permissions  = each.value.enable_cluster_creator_admin_permissions
-  
-  ## Enable Pod Identity authentication mode
-  #authentication_mode = "API_AND_CONFIG_MAP"
-  
-  # Network configuration
-  vpc_id     = module.vpc[each.value.vpc_name].vpc_id
-  subnet_ids = module.vpc[each.value.vpc_name].private_subnets
+  # Gives Terraform identity admin access to cluster which will
+  # allow deploying resources (Karpenter) into the cluster
+  enable_cluster_creator_admin_permissions = true
+  endpoint_public_access                   = true
 
-  # EKS Addons - using configuration from tfvars
-  addons = each.value.cluster_addons
-  
-  # EKS Managed Node Groups - using configuration from tfvars
-  eks_managed_node_groups = {
-    for ng_name, ng_config in each.value.eks_managed_node_groups : ng_name => {
-      instance_types = ng_config.instance_types
-      min_size      = ng_config.min_size
-      max_size      = ng_config.max_size
-      desired_size  = ng_config.desired_size
-      capacity_type = ng_config.capacity_type
-      ami_type      = ng_config.ami_type
-      disk_size     = ng_config.disk_size
-      
-      # Labels and taints for node specialization - Kubernetes standard approach
-      labels = ng_config.labels
-      #taints = ng_config.taints
-      
-  #     # This is not required - demonstrates how to pass additional configuration to nodeadm
-  #     # Ref https://awslabs.github.io/amazon-eks-ami/nodeadm/doc/api/
-  #     cloudinit_pre_nodeadm = [
-  #       {
-  #         content_type = "application/node.eks.aws"
-  #         content      = <<-EOT
-  #           ---
-  #           apiVersion: node.eks.aws/v1alpha1
-  #           kind: NodeConfig
-  #           spec:
-  #             kubelet:
-  #               config:
-  #                 shutdownGracePeriod: 30s
-  #                 featureGates:
-  #                   DisableKubeletCloudCredentialProviders: true
-  #         EOT
-  #       }
-  #     ]
-      
-      tags = merge(local.tags, ng_config.tags)
+  addons = {
+    coredns = {}
+    eks-pod-identity-agent = {
+      before_compute = true
+    }
+    kube-proxy = {}
+    vpc-cni = {
+      before_compute = true
     }
   }
 
-  # Tag the shared node security group for Karpenter securityGroupSelectorTerms discovery
+  vpc_id     = module.vpc["hub"].vpc_id
+  subnet_ids = module.vpc["hub"].private_subnets
+  control_plane_subnet_ids = module.vpc["hub"].intra_subnets
+
+  eks_managed_node_groups = {
+    karpenter = {
+      ami_type       = "BOTTLEROCKET_x86_64"
+      instance_types = ["t3.large"]
+
+      min_size     = 2
+      max_size     = 3
+      desired_size = 2
+
+      labels = {
+        # Used to ensure Karpenter runs on nodes that it does not manage
+        "karpenter.sh/controller" = "true"
+      }
+    }
+  }
+
   node_security_group_tags = merge(local.tags, {
-    "karpenter.sh/discovery" = "${local.cluster_name}"
+    # NOTE - if creating multiple security groups with this module, only tag the
+    # security group that Karpenter should utilize with the following tag
+    # (i.e. - at most, only one security group should have this tag in your account)
+    "karpenter.sh/discovery" = local.cluster_name
   })
-  tags = merge(local.tags, each.value.tags, { Component = "kubernetes" })
+
+  tags = local.tags
 }
+# module "eks" {
+#   for_each = var.eks_clusters
+#   source   = "terraform-aws-modules/eks/aws"
+#   version  = "21.1.5"  # Match Karpenter module version
+  
+#   name    = "${local.region_prefix}-${each.key}"
+#   kubernetes_version = each.value.cluster_version
+
+#   endpoint_public_access       = each.value.cluster_endpoint_public_access
+#   endpoint_private_access      = each.value.cluster_endpoint_private_access
+#   endpoint_public_access_cidrs = each.value.cluster_endpoint_public_access_cidrs
+
+#   # Admin permissions
+#   enable_cluster_creator_admin_permissions  = each.value.enable_cluster_creator_admin_permissions
+  
+#   ## Enable Pod Identity authentication mode
+#   #authentication_mode = "API_AND_CONFIG_MAP"
+  
+#   # Network configuration
+#   vpc_id     = module.vpc[each.value.vpc_name].vpc_id
+#   subnet_ids = module.vpc[each.value.vpc_name].private_subnets
+
+#   # EKS Addons - using configuration from tfvars
+#   addons = each.value.cluster_addons
+  
+#   # EKS Managed Node Groups - using configuration from tfvars
+#   eks_managed_node_groups = {
+#     for ng_name, ng_config in each.value.eks_managed_node_groups : ng_name => {
+#       instance_types = ng_config.instance_types
+#       min_size      = ng_config.min_size
+#       max_size      = ng_config.max_size
+#       desired_size  = ng_config.desired_size
+#       capacity_type = ng_config.capacity_type
+#       ami_type      = ng_config.ami_type
+#       disk_size     = ng_config.disk_size
+      
+#       # Labels and taints for node specialization - Kubernetes standard approach
+#       labels = ng_config.labels
+#       #taints = ng_config.taints
+      
+#   #     # This is not required - demonstrates how to pass additional configuration to nodeadm
+#   #     # Ref https://awslabs.github.io/amazon-eks-ami/nodeadm/doc/api/
+#   #     cloudinit_pre_nodeadm = [
+#   #       {
+#   #         content_type = "application/node.eks.aws"
+#   #         content      = <<-EOT
+#   #           ---
+#   #           apiVersion: node.eks.aws/v1alpha1
+#   #           kind: NodeConfig
+#   #           spec:
+#   #             kubelet:
+#   #               config:
+#   #                 shutdownGracePeriod: 30s
+#   #                 featureGates:
+#   #                   DisableKubeletCloudCredentialProviders: true
+#   #         EOT
+#   #       }
+#   #     ]
+      
+#       tags = merge(local.tags, ng_config.tags)
+#     }
+#   }
+
+#   # Tag the shared node security group for Karpenter securityGroupSelectorTerms discovery
+#   node_security_group_tags = merge(local.tags, {
+#     "karpenter.sh/discovery" = "${local.cluster_name}"
+#   })
+#   tags = merge(local.tags, each.value.tags, { Component = "kubernetes" })
+# }
 
 # Karpenter - Modern node autoscaling for Kubernetes
 # This creates the IAM roles and policies needed for Karpenter
-module "karpenter" {
-  for_each = { for k, v in var.eks_clusters : k => v if v.enable_karpenter }
+module "karpenter" {                                          
   source   = "terraform-aws-modules/eks/aws//modules/karpenter"
   version  = "21.1.5"
 
-  cluster_name = module.eks[each.key].cluster_name
+  cluster_name = module.eks.cluster_name
   
   #enable_v1_permissions  = each.value.karpenter_enable_v1_permissions
   
@@ -191,17 +242,17 @@ module "karpenter" {
   tags = merge(local.tags, { Component = "karpenter" })
 }
 
-# Kubernetes namespaces for EKS clusters
-# resource "kubernetes_namespace_v1" "this" {
-#   for_each = var.eks_namespaces
+#Kubernetes namespaces for EKS clusters
+resource "kubernetes_namespace_v1" "this" {
+  for_each = var.eks_namespaces
   
-#   metadata {
-#     name   = each.key
-#     labels = each.value.labels
-#   }
-# }
+  metadata {
+    name   = each.key
+    labels = each.value.labels
+  }
+}
 
-# Helm charts deployment - ArgoCD and other charts
+#Helm charts deployment - ArgoCD and other charts
 resource "helm_release" "this" {
   for_each         = var.helm
   name             = lookup(each.value,"name",null) == null ? each.key : each.value.name

@@ -42,10 +42,10 @@ eks_clusters = {
         eks_managed_node_groups = {
             # System node group - 2 nodes (one for system, one for Karpenter)
             system = {
-                instance_types  = ["t3.medium", "m5.large"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
+                instance_types  = ["t3.medium"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
                 min_size        = 2
                 desired_size    = 2
-                max_size        = 10
+                max_size        = 3
                 capacity_type   = "ON_DEMAND"   # Reliable for system workloads
                 ami_type        = "BOTTLEROCKET_x86_64"
                 disk_size       = 20
@@ -107,9 +107,9 @@ helm = {
 }
 
 eks_namespaces = {
-    # argocd = {
-    #     labels = {
-    #         name = "argocd"
-    #     }
-    # }
+    argocd = {
+        labels = {
+            name = "argocd"
+        }
+    }
 }
