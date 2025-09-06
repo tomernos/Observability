@@ -20,4 +20,28 @@ locals {
 
   # Tags alias for backward compatibility
   tags = local.common_tags
+  
+  # Dynamic Helm configuration - resolves dynamic values from modules
+  helm_configs = {
+    for name, config in var.helm : name => merge(config, 
+      # Handle dynamic authentication for Karpenter
+      lookup(config, "use_dynamic_auth", false) ? {
+        repository_username = data.aws_ecrpublic_authorization_token.token.user_name
+        repository_password = data.aws_ecrpublic_authorization_token.token.password
+      } : {},
+      # Handle dynamic values for Karpenter
+      lookup(config, "use_dynamic_values", false) ? {
+        values = [yamlencode(merge(
+          lookup(config, "values_template", {}),
+          {
+            settings = {
+              clusterName = module.eks.cluster_name
+              clusterEndpoint = module.eks.cluster_endpoint
+              interruptionQueue = module.karpenter.queue_name
+            }
+          }
+        ))]
+      } : {}
+    )
+  }
 }

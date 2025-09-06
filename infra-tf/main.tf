@@ -87,43 +87,20 @@ module "eks" {
   source   = "terraform-aws-modules/eks/aws"
 
   name               = local.cluster_name
-  kubernetes_version = "1.33"
+  kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   # Gives Terraform identity admin access to cluster which will
   # allow deploying resources (Karpenter) into the cluster
-  enable_cluster_creator_admin_permissions = true
-  endpoint_public_access                   = true
+  enable_cluster_creator_admin_permissions = var.eks_clusters.eks.enable_cluster_creator_admin_permissions
+  endpoint_public_access                   = var.eks_clusters.eks.cluster_endpoint_public_access
 
-  addons = {
-    coredns = {}
-    eks-pod-identity-agent = {
-      before_compute = true
-    }
-    kube-proxy = {}
-    vpc-cni = {
-      before_compute = true
-    }
-  }
+  addons = var.eks_clusters.eks.addons
 
   vpc_id     = module.vpc["hub"].vpc_id
   subnet_ids = module.vpc["hub"].private_subnets
   control_plane_subnet_ids = module.vpc["hub"].intra_subnets
 
-  eks_managed_node_groups = {
-    karpenter = {
-      ami_type       = "BOTTLEROCKET_x86_64"
-      instance_types = ["t3.large"]
-
-      min_size     = 2
-      max_size     = 3
-      desired_size = 2
-
-      labels = {
-        # Used to ensure Karpenter runs on nodes that it does not manage
-        "karpenter.sh/controller" = "true"
-      }
-    }
-  }
+  eks_managed_node_groups = var.eks_clusters.eks.eks_managed_node_groups
 
   node_security_group_tags = merge(local.tags, {
     # NOTE - if creating multiple security groups with this module, only tag the
@@ -254,14 +231,17 @@ resource "kubernetes_namespace_v1" "this" {
 
 #Helm charts deployment - ArgoCD and other charts
 resource "helm_release" "this" {
-  for_each         = var.helm
+  for_each         = local.helm_configs
   name             = lookup(each.value,"name",null) == null ? each.key : each.value.name
   repository       = lookup(each.value, "repository", null)
+  repository_username = lookup(each.value, "repository_username", null)
+  repository_password = lookup(each.value, "repository_password", null)
   chart            = lookup(each.value, "chart", null)
   version          = lookup(each.value, "version", null)
   create_namespace = lookup(each.value, "create_namespace",false)
   namespace        = lookup(each.value,"namespace",null)
+  wait             = lookup(each.value,"wait", false)
   
-  # Use default values for now
-  values = []
+  # Values from locals (handles both static and dynamic)
+  values = lookup(each.value,"values",[])
 }

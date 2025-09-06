@@ -4,6 +4,7 @@ aws_region  = "eu-central-1"
 
 vpcs = {
     hub = {
+        vpc_version        = "~> 6.0"
         cidr                 = "10.10.0.0/16"
         public_subnet_bits   = 8   # /24 per AZ for public
         private_subnet_bits  = 8   # /24 per AZ for private
@@ -24,28 +25,25 @@ ecr_repositories = {
 eks_clusters = {
     eks = {
         vpc_name                    = "hub"
-        cluster_version            = "1.31"
-        cluster_endpoint_public_access = true
-        cluster_endpoint_private_access = false
-        cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+        kubernetes_version          = "1.33"
         enable_cluster_creator_admin_permissions = true
-        #enable_irsa = true
-        
-        # Karpenter - Modern node autoscaling
-        # Karpenter is AWS's next-generation autoscaler that's more efficient than traditional node groups
-        enable_karpenter = true
-        karpenter_enable_v1_permissions = true
-        karpenter_enable_pod_identity = true
-        
+        cluster_endpoint_public_access = true
+
+        addons = {
+            coredns = {}
+            eks-pod-identity-agent = { before_compute = true }
+            kube-proxy = {}
+            vpc-cni = { before_compute = true }
+        }
         # Node groups configuration - COST-OPTIMIZED FOR LEARNING
         # Simple setup: 2 nodes total for system workloads + Karpenter
         eks_managed_node_groups = {
             # System node group - 2 nodes (one for system, one for Karpenter)
             system = {
                 instance_types  = ["t3.medium"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
-                min_size        = 2
-                desired_size    = 2
-                max_size        = 3
+                min_size        = 1
+                desired_size    = 1
+                max_size        = 2
                 capacity_type   = "ON_DEMAND"   # Reliable for system workloads
                 ami_type        = "BOTTLEROCKET_x86_64"
                 disk_size       = 20
@@ -103,6 +101,29 @@ helm = {
         version          = "7.8.8"
         create_namespace = true
         namespace        = "argocd"
+        wait             = false
+        values = []
+    }
+    karpenter = {
+        chart            = "karpenter"
+        repository       = "oci://public.ecr.aws/karpenter"
+        version          = "1.6.0"
+        create_namespace = true
+        namespace        = "kube-system"
+        wait             = false
+        # Dynamic values will be handled in locals
+        use_dynamic_auth = true
+        use_dynamic_values = true
+        # Template for Karpenter values - will be populated by locals
+        values_template = {
+            nodeSelector = {
+                "karpenter.sh/controller" = "true"
+            }
+            dnsPolicy = "Default"
+            webhook = {
+                enabled = false
+            }
+        }
     }
 }
 
