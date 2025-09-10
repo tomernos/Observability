@@ -1,0 +1,48 @@
+{
+    "nodegroup": {
+        "nodegroupName": "system-20250908125103809600000001",
+        "nodegroupArn": "arn:aws:eks:eu-central-1:654654526828:nodegroup/tnt-eu-observability-dev-eks/system-20250908125103809600000001/f0cc94b0-9d77-756f-3c61-622b7d0538c5",
+        "clusterName": "tnt-eu-observability-dev-eks",
+        "version": "1.33",
+        "releaseVersion": "1.46.0-431fe75a",
+        "createdAt": "2025-09-08T15:51:04.173000+03:00",
+        "modifiedAt": "2025-09-08T15:53:10.246000+03:00",
+        "status": "DELETING",
+        "capacityType": "ON_DEMAND",
+        "scalingConfig": {
+            "minSize": 1,
+            "maxSize": 2,
+            "desiredSize": 1
+        },
+        "instanceTypes": [
+            "t3.medium"
+        ],
+        "subnets": [
+            "subnet-0c56d4d8e83133658",
+            "subnet-08aabf98f0b8d4ed5"
+        ],
+        "amiType": "BOTTLEROCKET_x86_64",
+        "nodeRole": "arn:aws:iam::654654526828:role/system-eks-node-group-20250908113437645600000002",
+        "labels": {
+            "karpenter.sh/controller": "true"
+        },
+        "health": {
+            "issues": []
+        },
+        "updateConfig": {
+            "maxUnavailablePercentage": 33
+        },
+        "launchTemplate": {
+            "name": "system-20250908114448121100000011",
+            "version": "1",
+            "id": "lt-04e02f1af7fd9734f"
+        },
+        "tags": {
+            "Project": "observability",
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Name": "system",
+            "NodeGroup": "system"
+        }
+    }
+}

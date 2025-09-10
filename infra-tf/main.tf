@@ -85,9 +85,10 @@ module "vpc" {
 
 module "eks" {
   source   = "terraform-aws-modules/eks/aws"
+  # version  = "21.1.5"
+  kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   name               = local.cluster_name
-  kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   # Gives Terraform identity admin access to cluster which will
   # allow deploying resources (Karpenter) into the cluster
@@ -99,7 +100,6 @@ module "eks" {
   vpc_id     = module.vpc["hub"].vpc_id
   subnet_ids = module.vpc["hub"].private_subnets
   control_plane_subnet_ids = module.vpc["hub"].intra_subnets
-
   eks_managed_node_groups = var.eks_clusters.eks.eks_managed_node_groups
 
   node_security_group_tags = merge(local.tags, {
@@ -149,17 +149,25 @@ resource "kubernetes_namespace_v1" "this" {
 
 #Helm charts deployment - ArgoCD and other charts
 resource "helm_release" "this" {
-  for_each         = local.helm_configs
-  name             = lookup(each.value,"name",null) == null ? each.key : each.value.name
+  for_each         = var.helm
+  name             = lookup(each.value,"name", each.key) 
   repository       = lookup(each.value, "repository", null)
-  repository_username = lookup(each.value, "repository_username", null)
-  repository_password = lookup(each.value, "repository_password", null)
+  repository_username = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.user_name : lookup(each.value, "repository_username", null)
+  repository_password = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.password : lookup(each.value, "repository_password", null)
   chart            = lookup(each.value, "chart", null)
   version          = lookup(each.value, "version", null)
-  create_namespace = lookup(each.value, "create_namespace",false)
-  namespace        = lookup(each.value,"namespace",null)
-  wait             = lookup(each.value,"wait", false)
-  
+  create_namespace = lookup(each.value, "create_namespace", false)
+  namespace        = lookup(each.value,"namespace", "kube-system")
+  wait             = lookup(each.value,"wait", true)
+
   # Values from locals (handles both static and dynamic)
-  values = lookup(each.value,"values",[])
+  values = each.key == "karpenter" ? [local.karpenter_values] : lookup(each.value, "values", [])
+  
+  lifecycle {
+    ignore_changes = [
+      values,
+      repository_password,
+      metadata,
+    ]
+  }
 }

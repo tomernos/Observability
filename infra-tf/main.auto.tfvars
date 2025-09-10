@@ -29,14 +29,9 @@ eks_clusters = {
         enable_cluster_creator_admin_permissions = true
         cluster_endpoint_public_access = true
 
-        addons = {
-            coredns = {}
-            eks-pod-identity-agent = { before_compute = true }
-            kube-proxy = {}
-            vpc-cni = { before_compute = true }
-        }
         # Node groups configuration - COST-OPTIMIZED FOR LEARNING
         # Simple setup: 2 nodes total for system workloads + Karpenter
+        
         eks_managed_node_groups = {
             # System node group - 2 nodes (one for system, one for Karpenter)
             system = {
@@ -46,7 +41,6 @@ eks_clusters = {
                 max_size        = 2
                 capacity_type   = "ON_DEMAND"   # Reliable for system workloads
                 ami_type        = "BOTTLEROCKET_x86_64"
-                disk_size       = 20
                 labels = { 
                     # "observability.io/node-type" = "system"
                     # "observability.io/capacity-type" = "spot"
@@ -57,37 +51,14 @@ eks_clusters = {
                 tags = { NodeGroup = "system" }
             }
         }
-
-        
-
-        
+  
         # Essential cluster addons - COMMENTED OUT FOR LEARNING
         # We'll enable these one by one to understand their purpose
-        cluster_addons = {
-            # CoreDNS - simplified configuration
-            coredns = {
-                most_recent                 = true
-                resolve_conflicts_on_update = "OVERWRITE"
-                #configuration_values = "{\"tolerations\":[{\"key\":\"observability.io/system\",\"operator\":\"Equal\",\"value\":\"true\",\"effect\":\"NoSchedule\"}],\"nodeSelector\":{\"observability.io/node-type\":\"system\"}}"
-            }
-            # REQUIRED for Pod Identity - modern AWS authentication
-            eks-pod-identity-agent = {
-                most_recent                 = true
-                resolve_conflicts_on_update = "OVERWRITE"
-            }
-            kube-proxy = {
-                most_recent                 = true
-                resolve_conflicts_on_update = "OVERWRITE"
-            }
-            # vpc-cni = {
-            #     most_recent                 = true
-            #     resolve_conflicts_on_update = "OVERWRITE"
-            # }
-            # aws-ebs-csi-driver = {
-            #     most_recent                 = true
-            #     resolve_conflicts_on_update = "OVERWRITE"
-            #     # service_account_role_arn = "arn:aws:iam::ACCOUNT:role/AmazonEKS_EBS_CSI_DriverRole"
-            # }
+        addons = {
+            coredns = {}
+            eks-pod-identity-agent = { before_compute = true }
+            kube-proxy = {}
+            vpc-cni = { before_compute = true }
         }
         
         tags = { Environment = "dev", Purpose = "observability-cluster" }
@@ -95,6 +66,32 @@ eks_clusters = {
 }
 
 helm = {
+    secrets-store-csi-driver = {
+        chart      = "secrets-store-csi-driver"
+        repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
+        version    = "1.5.3"
+        namespace = "kube-system"
+        upgrade          = true
+    }
+    secrets-provider-aws = {
+        chart            = "secrets-store-csi-driver-provider-aws"
+        repository       = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
+        version          = "2.0.0" 
+        namespace        = "kube-system"
+        upgrade          = true
+    }
+    karpenter = {
+        chart            = "karpenter"
+        repository       = "oci://public.ecr.aws/karpenter"
+        version          = "1.6.0"
+        namespace        = "kube-system"
+        wait             = false
+        upgrade          = true
+        # Dynamic values will be handled in locals
+        use_dynamic_auth = true
+        use_dynamic_values = true
+        # Template for Karpenter values - will be populated by locals
+    }
     argocd = {
         chart            = "argo-cd"
         repository       = "https://argoproj.github.io/argo-helm"
@@ -102,35 +99,15 @@ helm = {
         create_namespace = true
         namespace        = "argocd"
         wait             = false
+        upgrade          = true
         values = []
-    }
-    karpenter = {
-        chart            = "karpenter"
-        repository       = "oci://public.ecr.aws/karpenter"
-        version          = "1.6.0"
-        create_namespace = true
-        namespace        = "kube-system"
-        wait             = false
-        # Dynamic values will be handled in locals
-        use_dynamic_auth = true
-        use_dynamic_values = true
-        # Template for Karpenter values - will be populated by locals
-        values_template = {
-            nodeSelector = {
-                "karpenter.sh/controller" = "true"
-            }
-            dnsPolicy = "Default"
-            webhook = {
-                enabled = false
-            }
-        }
     }
 }
 
-eks_namespaces = {
-    argocd = {
-        labels = {
-            name = "argocd"
-        }
-    }
-}
+# eks_namespaces = {
+#     argocd = {
+#         labels = {
+#             name = "argocd"
+#         }
+#     }
+# }

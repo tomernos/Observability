@@ -65,4 +65,5 @@ variable "helm" {
 variable "eks_namespaces" {
   description = "Map of Kubernetes namespace configurations for EKS clusters"
   type = any
+  default = {}
 }
