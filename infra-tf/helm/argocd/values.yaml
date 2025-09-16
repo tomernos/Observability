@@ -1,0 +1,62 @@
+# ArgoCD Configuration
+# global:
+#   domain: argocd.tomernos.xyz
+
+syncSecret:
+  enabled: true
+
+
+global:
+  domain: argocd.tomernos.xyz
+
+certificate:
+  enabled: false
+
+configs:
+  params:
+    "server.insecure": true
+  
+# server:
+#   ingress:
+#     enabled: true
+#     ingressClassName: nginx
+    # annotations:
+      # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      # nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    # tls: true
+# server:
+#   service:
+#     type: LoadBalancer
+#     annotations:
+#       external-dns.alpha.kubernetes.io/hostname: argocd.tomernos.xyz
+#       external-dns.alpha.kubernetes.io/ttl: "300"
+  
+  # ingress:
+  #   enabled: false
+    
+  # extraArgs:
+  #   - --insecure
+
+# controller:
+#   replicas: 1
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       cpu: 500m
+#       memory: 512Mi
+
+# repoServer:
+#   replicas: 1
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       cpu: 500m
+#       memory: 512Mi
+
+# applicationSet:
+#   enabled: true
+#   replicas: 1

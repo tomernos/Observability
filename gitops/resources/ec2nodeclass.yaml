@@ -3,7 +3,7 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  role: "karp-tnt-eu-d-eks"  # שם ה-Instance Profile/Role של ה-NODES (חייב להתקיים)
+  role: "tnt-eu-observability-dev-eks"  # שם ה-Instance Profile/Role של ה-NODES (חייב להתקיים)
   amiSelectorTerms:
     - alias: bottlerocket@latest
   subnetSelectorTerms:

@@ -67,3 +67,15 @@ variable "eks_namespaces" {
   type = any
   default = {}
 }
+
+variable "route53_zones" {
+  description = "Map of Route53 zones to create"
+  type = any
+  default = {}
+}
+
+variable "route53_records" {
+  description = "List of Route53 records to create"
+  type = any
+  default = []
+}

@@ -1,0 +1,34 @@
+# AWS Secrets Store CSI Driver Provider configuration
+# This chart should NOT install the base secrets-store-csi-driver
+# because we have it as a separate chart
+secrets-store-csi-driver:
+  install: false
+
+# AWS provider specific configuration
+replicaCount: 1
+
+# image:
+#   repository: public.ecr.aws/aws-secrets-manager/secrets-store-csi-driver-provider-aws
+#   pullPolicy: IfNotPresent
+
+# resources:
+#   limits:
+#     cpu: 50m
+#     memory: 100Mi
+#   requests:
+#     cpu: 50m
+#     memory: 100Mi
+
+# # Security context
+# securityContext:
+#   allowPrivilegeEscalation: false
+#   readOnlyRootFilesystem: true
+#   runAsNonRoot: true
+#   runAsUser: 65534
+#   capabilities:
+#     drop:
+#     - ALL
+
+# # Pod security context
+# podSecurityContext:
+#   fsGroup: 65534

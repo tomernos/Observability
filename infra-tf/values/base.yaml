@@ -1,0 +1,150 @@
+argocd:
+  global:
+    image:
+      tag: ""
+    domain: ""
+  server:
+    service:
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: argocd.tomernos.xyz
+        external-dns.alpha.kubernetes.io/ttl: "300"
+      loadBalancerIP: ""
+    ingress:
+      enabled: false
+      hosts: []
+      tls: []
+      annotations: {}
+    extraArgs: []
+    config: {}
+  controller:
+    replicas: 1
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+  repoServer:
+    replicas: 1
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+  applicationSet:
+    enabled: true
+    replicas: 1
+    resources: {}
+
+karpenter:
+  nodePool:
+    enabled: true
+    spec:
+      requirements: []
+      nodeClassRef:
+        apiVersion: ""
+        kind: ""
+        name: ""
+      taints: []
+      startupTaints: []
+  nodeClass:
+    userData: ""
+    role: ""
+    instanceStorePolicy: ""
+    instanceProfile: ""
+    subnetSelectorTerms: []
+    securityGroupSelectorTerms: []
+    tags: {}
+  controller:
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+
+secrets_store_csi_driver:
+  syncSecret:
+    enabled: false
+  enableSecretRotation: false
+  rotationPollInterval: ""
+  controller:
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+
+secrets_store_csi_provider_aws:
+  controller:
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+
+external_dns:
+  provider: aws
+  sources:
+    - service
+    - ingress
+  domainFilters: []
+  policy: upsert-only
+  registry: txt
+  txtOwnerId: ""
+  txtPrefix: ""
+  interval: 1m
+  logLevel: info
+  aws:
+    region: ""
+    zoneType: public
+    assumeRoleArn: ""
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+ingress_nginx:
+  controller:
+    kind: Deployment
+    replicas: 2
+    service:
+      type: LoadBalancer
+      annotations: {}
+      loadBalancerIP: ""
+      externalTrafficPolicy: ""
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    config: {}
+    ingressClassResource:
+      name: nginx
+      enabled: true
+      default: false
+  defaultBackend:
+    enabled: false
+
+# cert_manager:
+#   installCRDs: true
+#   webhook:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+#   cainjector:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+#   controller:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+#   clusterIssuers: []
+
+# keda:
+#   operator:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+#   metricsServer:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+#   webhooks:
+#     resources: {}
+#     nodeSelector: {}
+#     tolerations: []
+

@@ -60,7 +60,7 @@ gitops/**/repository-secret.yaml
 **/crash.*.log
 
 # Terraform variable files with secrets
-**/*.auto.tfvars
+#**/*.auto.tfvars
 **/*secret*.tfvars
 **/*secrets*.tfvars
 **/terraform.tfvars

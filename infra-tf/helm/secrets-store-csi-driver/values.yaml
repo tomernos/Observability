@@ -1,0 +1,44 @@
+# # Secrets Store CSI Driver base configuration
+# linux:
+#   image:
+#     repository: k8s.gcr.io/csi-secrets-store/driver
+#     pullPolicy: IfNotPresent
+  
+#   # Enable secret rotation
+#   enableSecretRotation: false
+#   rotationPollInterval: "2m"
+  
+  # resources:
+  #   limits:
+  #     cpu: 100m
+  #     memory: 100Mi
+  #   requests:
+  #     cpu: 100m
+  #     memory: 100Mi
+
+syncSecret:
+  enabled: false
+
+# Windows settings (if needed)
+# windows:
+#   enabled: false
+
+# RBAC
+rbac:
+  create: true
+
+# Pod security context
+# podSecurityContext:
+#   runAsNonRoot: true
+#   runAsUser: 65534
+#   fsGroup: 65534
+
+# # Security context
+# securityContext:
+#   allowPrivilegeEscalation: false
+#   readOnlyRootFilesystem: true
+#   runAsNonRoot: true
+#   runAsUser: 65534
+#   capabilities:
+#     drop:
+#       - ALL

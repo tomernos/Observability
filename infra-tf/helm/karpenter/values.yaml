@@ -1,0 +1,27 @@
+# Karpenter Configuration
+nodeSelector:
+  karpenter.sh/controller: "true"
+
+dnsPolicy: Default
+
+settings:
+  clusterName: tnt-eu-observability-dev-eks
+  clusterEndpoint: ""  # Will be set by locals if needed
+  interruptionQueue: ""  # Will be set by locals if needed
+
+webhook:
+  enabled: false
+
+controller:
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+replicas: 1
+
+serviceAccount:
+  name: karpenter

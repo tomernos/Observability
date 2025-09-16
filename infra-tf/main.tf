@@ -138,7 +138,7 @@ module "karpenter" {
 }
 
 #Kubernetes namespaces for EKS clusters
-resource "kubernetes_namespace_v1" "this" {
+resource "kubernetes_namespace" "this" {
   for_each = var.eks_namespaces
   
   metadata {
@@ -159,15 +159,148 @@ resource "helm_release" "this" {
   create_namespace = lookup(each.value, "create_namespace", false)
   namespace        = lookup(each.value,"namespace", "kube-system")
   wait             = lookup(each.value,"wait", true)
-
+  #upgrade_install     = lookup(each.value,"upgrade", true)
+  replace          = lookup(each.value,"replace", true)
   # Values from locals (handles both static and dynamic)
-  values = each.key == "karpenter" ? [local.karpenter_values] : lookup(each.value, "values", [])
-  
+  #values = each.key == "karpenter" ? [local.karpenter_values] : each.key == "external-dns" ? [local.external_dns_values] : lookup(each.value, "values", [])
+  # values = length(fileset("${path.module}/../helm/${each.key}", "*.yaml")) > 0 ? [
+  #   for file in fileset("${path.module}/../helm/${each.key}", "*.yaml") :
+  #   file("${path.module}/../helm/${each.key}/${file}")
+  # ] : []
+  # Clean template-based values loading
+  values = (
+    each.key == "karpenter" ? [
+      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
+        cluster_name      = module.eks.cluster_name
+        cluster_endpoint  = module.eks.cluster_endpoint
+        interruption_queue = module.karpenter.queue_name
+      })
+    ] : each.key == "external-dns" ? [
+      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
+        txt_owner_id = "external-dns-${random_id.external_dns.hex}"
+        role_arn     = aws_iam_role.external_dns.arn
+        aws_region   = var.aws_region
+        domain_name  = keys(var.route53_zones)[0]
+      })
+    ] : length(fileset("${path.module}/helm/${each.key}", "*.yaml")) > 0 ? [
+      # Static values files for other charts
+      for file in fileset("${path.module}/helm/${each.key}", "*.yaml") :
+      file("${path.module}/helm/${each.key}/${file}")
+    ] : []
+  )
+
   lifecycle {
     ignore_changes = [
-      values,
+      # Ignore values only for Karpenter (dynamic values issue)
+      #values,
+      # Ignore ECR auth token changes
       repository_password,
-      metadata,
+      # Ignore metadata changes that don't affect functionality
+      #metadata[0].revision,
+      metadata[0].app_version,
     ]
   }
 }
+## external dns
+
+data "aws_iam_policy_document" "external_dns_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+    
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = ["${module.eks.cluster_arn}"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "external_dns_r53" {
+  name        = "${local.cluster_name}-external-dns-policy"
+  description = "Allow ExternalDNS to manage Route53 records"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "route53:ChangeResourceRecordSets",
+          "route53:ListResourceRecordSets",
+          "route53:ListHostedZones",
+          "route53:GetChange"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+module "zones" {
+  source  = "terraform-aws-modules/route53/aws//modules/zones"
+  version = "5.0.0"
+
+  zones = var.route53_zones
+
+  tags = local.common_tags
+}
+
+module "records" {
+  source  = "terraform-aws-modules/route53/aws//modules/records"
+  version = "5.0.0"
+
+  zone_name = keys(var.route53_zones)[0]  # Use first zone
+  zone_id   = module.zones.route53_zone_zone_id[keys(var.route53_zones)[0]]
+
+  records = var.route53_records
+
+  depends_on = [module.zones]
+}
+
+# External DNS Resources
+resource "random_id" "external_dns" {
+  byte_length = 4
+}
+
+resource "aws_iam_role" "external_dns" {
+  name               = "${local.cluster_name}-external-dns-role"
+  assume_role_policy = data.aws_iam_policy_document.external_dns_assume.json
+  
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "external_dns_attach" {
+  role       = aws_iam_role.external_dns.name
+  policy_arn = aws_iam_policy.external_dns_r53.arn
+}
+
+# Pod Identity Association for External DNS
+resource "aws_eks_pod_identity_association" "external_dns" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "kube-system"
+  service_account = "external-dns"
+  role_arn        = aws_iam_role.external_dns.arn
+  
+  tags = local.common_tags
+}
+#   }
+# }
+
+# resource "aws_eks_pod_identity_association" "external_dns" {
+#   cluster_name    = local.cluster_name
+#   namespace       = kubernetes_namespace.external_dns.metadata[0].name
+#   service_account = kubernetes_service_account.external_dns.metadata[0].name
+#   role_arn        = aws_iam_role.external_dns.arn
+# } 

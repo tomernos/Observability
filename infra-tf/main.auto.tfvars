@@ -41,6 +41,13 @@ eks_clusters = {
                 max_size        = 2
                 capacity_type   = "ON_DEMAND"   # Reliable for system workloads
                 ami_type        = "BOTTLEROCKET_x86_64"
+                #max_pods        = 50            # Increase from default ~17 to 50 pods per node
+                # Enable SSM access for node management
+                iam_role_additional_policies = {
+                    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+                }
+                # Optional: Add SSH key for direct SSH access (create key pair first)
+                # key_name = "my-eks-key"
                 labels = { 
                     # "observability.io/node-type" = "system"
                     # "observability.io/capacity-type" = "spot"
@@ -89,8 +96,24 @@ helm = {
         upgrade          = true
         # Dynamic values will be handled in locals
         use_dynamic_auth = true
-        use_dynamic_values = true
         # Template for Karpenter values - will be populated by locals
+    }
+    external-dns = {
+        chart            = "external-dns"
+        repository       = "https://kubernetes-sigs.github.io/external-dns/"
+        version          = "1.18.0"
+        namespace        = "kube-system"
+        wait             = false
+        upgrade          = true
+    }
+    metric-server = {
+        chart            = "metrics-server"
+        repository       = "https://kubernetes-sigs.github.io/metrics-server/"
+        version          = "3.13.0"
+        namespace        = "kube-system"
+        wait             = false
+        upgrade          = true
+        values = []
     }
     argocd = {
         chart            = "argo-cd"
@@ -102,12 +125,67 @@ helm = {
         upgrade          = true
         values = []
     }
+    cert-manager = {
+        chart            = "cert-manager"
+        repository       = "https://charts.jetstack.io"
+        version          = "v1.18.2"
+        create_namespace = true
+        namespace        = "cert-manager"
+        wait             = false
+        upgrade          = true
+    }
+    ingress-nginx = {
+        chart            = "ingress-nginx"
+        repository       = "https://kubernetes.github.io/ingress-nginx"
+        version          = "4.13.2"
+        create_namespace = true
+        namespace        = "ingress-nginx"
+        wait             = false
+        upgrade          = true
+    }
 }
 
-# eks_namespaces = {
-#     argocd = {
-#         labels = {
-#             name = "argocd"
-#         }
-#     }
-# }
+eks_namespaces = {
+    external-dns = {
+        labels = {
+            name = "external-dns"
+        }
+    }
+}
+
+# Route 53 Configuration
+route53_zones = {
+  "tomernos.xyz" = {
+    comment = "Main domain for observability project"
+    tags = {
+      Environment = "dev"
+      Purpose     = "observability"
+    }
+  }
+}
+
+route53_records = [
+  # A record for the root domain (optional - points to a fixed IP)
+  {
+    name    = ""
+    type    = "A"
+    ttl     = 300
+    records = ["1.2.3.4"]  # Replace with your actual IP
+    alias = {}
+  },
+  # CNAME for www subdomain
+  {
+    name    = "www"
+    type    = "CNAME"
+    ttl     = 300
+    records = ["tomernos.xyz"]
+  },
+  # A records for services (external-dns will manage these automatically)
+  # Wildcard for subdomains
+  {
+    name    = "*"
+    type    = "A"
+    ttl     = 300
+    records = ["10.0.0.100"]  # Placeholder - external-dns will manage
+  }
+]

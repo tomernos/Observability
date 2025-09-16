@@ -3,31 +3,64 @@ kind: Application
 metadata:
   name: karpenter
   namespace: argocd
-  labels:
-    app: karpenter
 spec:
   project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
   source:
-    repoURL: https://charts.karpenter.sh
-    chart: karpenter
-    targetRevision: 0.16.3
+    repoURL: 'git@github.com:tomernos/Observability.git'
+    path: ./karpenter
+    targetRevision: main
     helm:
       values: |
         replicas: 1
+        serviceAccount:
+          create: true
+          name: karpenter
         settings:
           clusterName: tnt-eu-observability-dev-eks
           clusterEndpoint: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
           interruptionQueue: tnt-eu-observability-dev-eks-karpenter
-        serviceAccount:
-          create: true
-          name: karpenter
         logLevel: info
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: karpenter
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: karpenter
+#   namespace: argocd
+# spec:
+#   project: default
+#   source:
+#     repoURL: oci://public.ecr.aws/karpenter/karpenter
+#     chart: karpenter
+#     targetRevision: 1.6.3      # מה שראית זמין ב-helm search
+#     helm:
+#       values: |
+#         controller:
+#           env:
+#             - name: AWS_REGION
+#               value: eu-central-1
+#             - name: CLUSTER_NAME
+#               value: tnt-eu-observability-dev-eks
+#             - name: CLUSTER_ENDPOINT
+#               value: https://0225118442067E2CF58DE7E54EF7A3AF.gr7.eu-central-1.eks.amazonaws.com
+#         serviceAccount:
+#           create: true
+#           name: karpenter
+#         # אם אין לך צורך ב-webhook, אפשר לנטרל (רשות):
+#         webhook:
+#           enabled: false
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: karpenter
+#   syncPolicy:
+#     automated:
+#       prune: true
+#     syncOptions:
+#       - CreateNamespace=true

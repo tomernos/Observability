@@ -1,0 +1,36 @@
+# External DNS Configuration
+provider: aws
+
+aws:
+  region: eu-central-1
+  zoneType: public
+
+domainFilters:
+  - tomernos.xyz
+
+sources:
+  - service
+  - ingress
+
+policy: upsert-only
+registry: txt
+txtOwnerId: external-dns-observability
+
+serviceAccount:
+  create: true
+  name: external-dns
+  annotations: {}
+
+logLevel: info
+interval: 1m
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 50Mi
+  limits:
+    cpu: 50m
+    memory: 100Mi
+
+rbac:
+  create: true

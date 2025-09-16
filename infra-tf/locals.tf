@@ -36,4 +36,24 @@ locals {
       enabled = false
     }
   })
+
+  # External DNS values with proper interpolation
+  external_dns_values = yamlencode({
+    provider = "aws"
+    aws = {
+      region = var.aws_region
+      zoneType = "public"
+    }
+    domainFilters = [
+      keys(var.route53_zones)[0]  # Use first domain
+    ]
+    txtOwnerId = "external-dns-${random_id.external_dns.hex}"
+    serviceAccount = {
+      annotations = {
+        "eks.amazonaws.com/role-arn" = aws_iam_role.external_dns.arn
+      }
+    }
+    logLevel = "info"
+    policy = "upsert-only"  # Only create records, don't delete
+  })
 }
