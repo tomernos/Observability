@@ -15,17 +15,28 @@ data "aws_eks_cluster_auth" "main" {
 }
 
 # Kubernetes provider - uses EKS module outputs for authentication
+
 provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  token                  = data.aws_eks_cluster_auth.main.token
+  host                   = try(module.eks.cluster_endpoint, null)
+  cluster_ca_certificate = try(base64decode(module.eks.cluster_certificate_authority_data), null)
+  token                  = try(data.aws_eks_cluster_auth.main.token, null)
+
 }
 
 # Helm provider - uses EKS module outputs for authentication
+
 provider "helm" {
   kubernetes = {
-    host                   = module.eks.cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    token                  = data.aws_eks_cluster_auth.main.token
+    host                   = try(module.eks.cluster_endpoint, null)
+    cluster_ca_certificate = try(base64decode(module.eks.cluster_certificate_authority_data), null)
+    token                  = try(data.aws_eks_cluster_auth.main.token, null)
   }
+}
+
+# Kubectl provider - better for applying raw manifests (doesn't validate during plan)
+provider "kubectl" {
+  host                   = try(module.eks.cluster_endpoint, null)
+  cluster_ca_certificate = try(base64decode(module.eks.cluster_certificate_authority_data), null)
+  token                  = try(data.aws_eks_cluster_auth.main.token, null)
+  load_config_file       = false
 }

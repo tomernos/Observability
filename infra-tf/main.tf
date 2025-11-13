@@ -122,7 +122,8 @@ module "karpenter" {
   
   # Enable spot instance permissions - REQUIRED for spot pricing data
   enable_spot_termination = true
-  
+
+  create_instance_profile = true
   node_iam_role_name = "${local.cluster_name}"
   node_iam_role_use_name_prefix = false
 
@@ -147,35 +148,89 @@ resource "kubernetes_namespace" "this" {
   }
 }
 
-#Helm charts deployment - ArgoCD and other charts
+# PHASE 1: Install Karpenter FIRST (it provisions nodes for other workloads)
+resource "helm_release" "karpenter" {
+  name             = "karpenter"
+  repository       = "oci://public.ecr.aws/karpenter"
+  repository_username = data.aws_ecrpublic_authorization_token.token.user_name
+  repository_password = data.aws_ecrpublic_authorization_token.token.password
+  chart            = "karpenter"
+  version          = var.karpenter_version
+  create_namespace = false
+  namespace        = "kube-system"
+  wait             = true
+  timeout          = 600  # 10 minutes for Karpenter to be ready
+  
+  values = [
+    templatefile("${path.module}/helm/karpenter/values.yaml.tpl", {
+      cluster_name      = module.eks.cluster_name
+      cluster_endpoint  = module.eks.cluster_endpoint
+      interruption_queue = module.karpenter.queue_name
+    })
+  ]
+
+  depends_on = [
+    module.eks,
+    module.karpenter
+  ]
+
+  lifecycle {
+    ignore_changes = [
+      repository_password,
+      metadata[0].app_version,
+    ]
+  }
+}
+
+# PHASE 1.5: Apply Karpenter NodePool & EC2NodeClass using kubectl provider
+# kubectl_manifest doesn't validate during plan - perfect for new clusters!
+resource "kubectl_manifest" "karpenter_ec2_node_class" {
+  yaml_body = templatefile("${path.module}/examples/karpenter-ec2nodeclass.yaml.tpl", {
+    cluster_name = module.eks.cluster_name
+    node_role    = module.karpenter.node_iam_role_name
+  })
+
+  depends_on = [
+    module.eks,
+    helm_release.karpenter
+  ]
+}
+
+resource "kubectl_manifest" "karpenter_node_pool" {
+  yaml_body = file("${path.module}/examples/karpenter-nodepool.yaml.tpl")
+
+  depends_on = [
+    module.eks,
+    helm_release.karpenter,
+    kubectl_manifest.karpenter_ec2_node_class
+  ]
+}
+
+# Wait for Karpenter to process the NodePool and be ready to provision nodes
+# resource "time_sleep" "wait_for_nodepool" {
+#   create_duration = "30s"
+
+#   depends_on = [
+#     kubectl_manifest.karpenter_node_pool
+#   ]
+# }
+
+# PHASE 2: Install other Helm charts AFTER Karpenter NodePool is configured
 resource "helm_release" "this" {
   for_each         = var.helm
   name             = lookup(each.value,"name", each.key) 
   repository       = lookup(each.value, "repository", null)
-  repository_username = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.user_name : lookup(each.value, "repository_username", null)
-  repository_password = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.password : lookup(each.value, "repository_password", null)
   chart            = lookup(each.value, "chart", null)
   version          = lookup(each.value, "version", null)
   create_namespace = lookup(each.value, "create_namespace", false)
   namespace        = lookup(each.value,"namespace", "kube-system")
-  wait             = lookup(each.value,"wait", true)
-  #upgrade_install     = lookup(each.value,"upgrade", true)
+  wait             = lookup(each.value,"wait", false)  # Don't wait for all - speeds up deployment
+  timeout          = lookup(each.value,"timeout", 300)
   replace          = lookup(each.value,"replace", true)
-  # Values from locals (handles both static and dynamic)
-  #values = each.key == "karpenter" ? [local.karpenter_values] : each.key == "external-dns" ? [local.external_dns_values] : lookup(each.value, "values", [])
-  # values = length(fileset("${path.module}/../helm/${each.key}", "*.yaml")) > 0 ? [
-  #   for file in fileset("${path.module}/../helm/${each.key}", "*.yaml") :
-  #   file("${path.module}/../helm/${each.key}/${file}")
-  # ] : []
-  # Clean template-based values loading
+  
+  # Values loading for different charts
   values = (
-    each.key == "karpenter" ? [
-      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
-        cluster_name      = module.eks.cluster_name
-        cluster_endpoint  = module.eks.cluster_endpoint
-        interruption_queue = module.karpenter.queue_name
-      })
-    ] : each.key == "external-dns" ? [
+    each.key == "external-dns" ? [
       templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
         txt_owner_id = "external-dns-${random_id.external_dns.hex}"
         role_arn     = aws_iam_role.external_dns.arn
@@ -189,14 +244,14 @@ resource "helm_release" "this" {
     ] : []
   )
 
+  # CRITICAL: All other charts depend on Karpenter NodePool being ready to provision nodes
+  depends_on = [
+    kubectl_manifest.karpenter_node_pool,
+    kubectl_manifest.karpenter_ec2_node_class
+  ]
+
   lifecycle {
     ignore_changes = [
-      # Ignore values only for Karpenter (dynamic values issue)
-      #values,
-      # Ignore ECR auth token changes
-      repository_password,
-      # Ignore metadata changes that don't affect functionality
-      #metadata[0].revision,
       metadata[0].app_version,
     ]
   }

@@ -10,12 +10,20 @@ terraform {
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.36"  # Use stable version
+      version = "2.38.0"  # Use stable version
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
     }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    # time = {
+    #   source  = "hashicorp/time"
+    #   version = "~> 0.12"
+    # }
   }
   
   #required_version = ">= 1.0"

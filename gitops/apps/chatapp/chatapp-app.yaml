@@ -1,0 +1,51 @@
+# ChatApplication - Production Deployment
+# This connects your ChatApp repo to the EKS cluster via ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chatapp
+  namespace: argocd
+  # Finalizers ensure proper cleanup
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Source: Your ChatApplication GitHub repo
+  source:
+    repoURL: https://github.com/tomernos/ChatApplication.git
+    targetRevision: main
+    path: helm-chart
+    
+    helm:
+      # Use production values
+      valueFiles:
+        - values-prod.yaml
+  
+  # Destination: EKS cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chatapp-prod
+  
+  # Sync policy - START MANUAL for safety
+  syncPolicy:
+    automated:
+      prune: false      # Don't auto-delete (manual for now)
+      selfHeal: false   # Don't auto-fix (manual for now)
+    syncOptions:
+      - CreateNamespace=true
+    
+    # Retry strategy
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Ignore differences (for testing)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Allow manual scaling for testing

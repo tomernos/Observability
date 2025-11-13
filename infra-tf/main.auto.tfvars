@@ -2,6 +2,9 @@ project     = "observability"
 environment = "dev"
 aws_region  = "eu-central-1"
 
+# Karpenter version (deployed as dedicated resource before other Helm charts)
+karpenter_version = "1.6.0"
+
 vpcs = {
     hub = {
         vpc_version        = "~> 6.0"
@@ -72,6 +75,9 @@ eks_clusters = {
     }
 }
 
+# Helm charts configuration
+# NOTE: Karpenter is deployed separately as a dedicated resource in main.tf
+# to ensure it provisions nodes BEFORE other charts are installed
 helm = {
     secrets-store-csi-driver = {
         chart      = "secrets-store-csi-driver"
@@ -86,17 +92,6 @@ helm = {
         version          = "2.0.0" 
         namespace        = "kube-system"
         upgrade          = true
-    }
-    karpenter = {
-        chart            = "karpenter"
-        repository       = "oci://public.ecr.aws/karpenter"
-        version          = "1.6.0"
-        namespace        = "kube-system"
-        wait             = false
-        upgrade          = true
-        # Dynamic values will be handled in locals
-        use_dynamic_auth = true
-        # Template for Karpenter values - will be populated by locals
     }
     external-dns = {
         chart            = "external-dns"

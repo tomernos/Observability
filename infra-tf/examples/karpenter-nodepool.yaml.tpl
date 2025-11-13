@@ -23,22 +23,6 @@ spec:
           operator: In
           values: ["t3.medium"]
 
-  # Move disruption to the correct level
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 30s
----
-apiVersion: karpenter.k8s.aws/v1
-kind: EC2NodeClass
-metadata:
-  name: default
-spec:
-  role: "tnt-eu-observability-dev-eks"
-  amiSelectorTerms:
-    - alias: bottlerocket@latest
-  subnetSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "tnt-eu-observability-dev-eks"
-  securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "tnt-eu-observability-dev-eks"
