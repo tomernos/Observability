@@ -20,7 +20,7 @@ spec:
     helm:
       # Use production values
       valueFiles:
-        - values-prod.yaml
+        - values.yaml
   
   # Destination: EKS cluster
   destination:

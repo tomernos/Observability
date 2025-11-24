@@ -15,13 +15,13 @@ spec:
       requirements:
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["spot"]
+          values: ["spot","on-demand"]
         - key: kubernetes.io/arch
           operator: In
           values: ["amd64"]
         - key: node.kubernetes.io/instance-type
           operator: In
-          values: ["t3.medium"]
+          values: ["t3.small","t3a.small","t3a.medium"]
 
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized

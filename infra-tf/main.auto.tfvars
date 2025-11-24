@@ -1,9 +1,9 @@
-project     = "observability"
+project     = "chatapp"
 environment = "dev"
 aws_region  = "eu-central-1"
 
 # Karpenter version (deployed as dedicated resource before other Helm charts)
-karpenter_version = "1.6.0"
+#karpenter_version = "1.6.0"
 
 vpcs = {
     hub = {
@@ -32,19 +32,15 @@ eks_clusters = {
         enable_cluster_creator_admin_permissions = true
         cluster_endpoint_public_access = true
 
-        # Node groups configuration - COST-OPTIMIZED FOR LEARNING
-        # Simple setup: 2 nodes total for system workloads + Karpenter
-        
+        # Node groups configuration 
         eks_managed_node_groups = {
-            # System node group - 2 nodes (one for system, one for Karpenter)
             system = {
-                instance_types  = ["t3.medium"]  # Multiple types for better spot availability t3,small - # $0.0208/hour, 2 vCPU, 2GB RAM
+                instance_types  = ["t3.large"]  # $0.0208/hour, 2 vCPU, 2GB RAM
                 min_size        = 1
                 desired_size    = 1
                 max_size        = 2
-                capacity_type   = "ON_DEMAND"   # Reliable for system workloads
+                capacity_type   = "ON_DEMAND"  
                 ami_type        = "BOTTLEROCKET_x86_64"
-                #max_pods        = 50            # Increase from default ~17 to 50 pods per node
                 # Enable SSM access for node management
                 iam_role_additional_policies = {
                     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -62,13 +58,12 @@ eks_clusters = {
             }
         }
   
-        # Essential cluster addons - COMMENTED OUT FOR LEARNING
-        # We'll enable these one by one to understand their purpose
+        # Essential cluster addons 
         addons = {
             coredns = {}
-            eks-pod-identity-agent = { before_compute = true }
+            eks-pod-identity-agent = { before_compute=true }
             kube-proxy = {}
-            vpc-cni = { before_compute = true }
+            vpc-cni = { before_compute=true } 
         }
         
         tags = { Environment = "dev", Purpose = "observability-cluster" }
@@ -76,9 +71,15 @@ eks_clusters = {
 }
 
 # Helm charts configuration
-# NOTE: Karpenter is deployed separately as a dedicated resource in main.tf
-# to ensure it provisions nodes BEFORE other charts are installed
 helm = {
+    karpenter = {
+        chart            = "karpenter"
+        repository       = "oci://public.ecr.aws/karpenter"
+        version          = "1.6.0"
+        namespace        = "kube-system"
+        upgrade          = true
+        use_dynamic_auth = true # Dynamic values will be handled in locals
+    }
     secrets-store-csi-driver = {
         chart      = "secrets-store-csi-driver"
         repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"

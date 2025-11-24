@@ -1,0 +1,9 @@
+grafana:
+  enabled: true
+  
+  # Change this password!
+  adminPassword: "admin123"
+  
+  # Access Grafana from outside the cluster
+  service:
+    type: LoadBalancer

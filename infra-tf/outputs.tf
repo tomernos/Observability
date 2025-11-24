@@ -61,3 +61,18 @@ output "route53_zone_name_servers" {
 #   }, {})
 #   description = "Available Karpenter module outputs for debugging"
 # }
+
+# ChatApp Secrets Manager IAM Role
+output "chatapp_secrets_role_arn" {
+  value       = aws_iam_role.chatapp_secrets.arn
+  description = "IAM Role ARN for ChatApp to access AWS Secrets Manager - Use this in ServiceAccount annotation"
+}
+
+output "chatapp_pod_identity_association" {
+  value = {
+    namespace       = aws_eks_pod_identity_association.chatapp_secrets.namespace
+    service_account = aws_eks_pod_identity_association.chatapp_secrets.service_account
+    role_arn        = aws_eks_pod_identity_association.chatapp_secrets.role_arn
+  }
+  description = "ChatApp Pod Identity Association details"
+}

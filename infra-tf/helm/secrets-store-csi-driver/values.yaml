@@ -17,7 +17,7 @@
   #     memory: 100Mi
 
 syncSecret:
-  enabled: false
+  enabled: true
 
 # Windows settings (if needed)
 # windows:

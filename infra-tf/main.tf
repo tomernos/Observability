@@ -85,7 +85,7 @@ module "vpc" {
 
 module "eks" {
   source   = "terraform-aws-modules/eks/aws"
-  # version  = "21.1.5"
+  version  = "21.9.0"  # Updated to latest stable release
   kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   name               = local.cluster_name
@@ -103,9 +103,6 @@ module "eks" {
   eks_managed_node_groups = var.eks_clusters.eks.eks_managed_node_groups
 
   node_security_group_tags = merge(local.tags, {
-    # NOTE - if creating multiple security groups with this module, only tag the
-    # security group that Karpenter should utilize with the following tag
-    # (i.e. - at most, only one security group should have this tag in your account)
     "karpenter.sh/discovery" = local.cluster_name
   })
 
@@ -116,17 +113,16 @@ module "eks" {
 # This creates the IAM roles and policies needed for Karpenter
 module "karpenter" {                                          
   source   = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version  = "21.1.5"
+  version  = "21.9.0"
 
   cluster_name = module.eks.cluster_name
   
   # Enable spot instance permissions - REQUIRED for spot pricing data
   enable_spot_termination = true
 
-  create_instance_profile = true
+  #create_instance_profile = true
   node_iam_role_name = "${local.cluster_name}"
   node_iam_role_use_name_prefix = false
-
   # Enable EKS Pod Identity for Karpenter (modern way vs IRSA)
   #enable_pod_identity    = each.value.karpenter_enable_pod_identity
   create_pod_identity_association = true
@@ -149,62 +145,60 @@ resource "kubernetes_namespace" "this" {
 }
 
 # PHASE 1: Install Karpenter FIRST (it provisions nodes for other workloads)
-resource "helm_release" "karpenter" {
-  name             = "karpenter"
-  repository       = "oci://public.ecr.aws/karpenter"
-  repository_username = data.aws_ecrpublic_authorization_token.token.user_name
-  repository_password = data.aws_ecrpublic_authorization_token.token.password
-  chart            = "karpenter"
-  version          = var.karpenter_version
-  create_namespace = false
-  namespace        = "kube-system"
-  wait             = true
-  timeout          = 600  # 10 minutes for Karpenter to be ready
+# resource "helm_release" "karpenter" {
+#   name             = "karpenter"
+#   repository       = "oci://public.ecr.aws/karpenter"
+#   repository_username = data.aws_ecrpublic_authorization_token.token.user_name
+#   repository_password = data.aws_ecrpublic_authorization_token.token.password
+#   chart            = "karpenter"
+#   version          = var.karpenter_version
+#   create_namespace = false
+#   namespace        = "kube-system"
+#   wait             = true
+#   timeout          = 600  # 10 minutes for Karpenter to be ready
   
-  values = [
-    templatefile("${path.module}/helm/karpenter/values.yaml.tpl", {
-      cluster_name      = module.eks.cluster_name
-      cluster_endpoint  = module.eks.cluster_endpoint
-      interruption_queue = module.karpenter.queue_name
-    })
-  ]
+#   values = [
+#     templatefile("${path.module}/helm/karpenter/values.yaml.tpl", {
+#       cluster_name      = module.eks.cluster_name
+#       cluster_endpoint  = module.eks.cluster_endpoint
+#       interruption_queue = module.karpenter.queue_name
+#     })
+#   ]
 
-  depends_on = [
-    module.eks,
-    module.karpenter
-  ]
+#   depends_on = [
+#     module.eks,
+#     module.karpenter
+#   ]
 
-  lifecycle {
-    ignore_changes = [
-      repository_password,
-      metadata[0].app_version,
-    ]
-  }
-}
+#   lifecycle {
+#     ignore_changes = [
+#       repository_password,
+#       metadata[0].app_version,
+#     ]
+#   }
+# }
 
 # PHASE 1.5: Apply Karpenter NodePool & EC2NodeClass using kubectl provider
 # kubectl_manifest doesn't validate during plan - perfect for new clusters!
-resource "kubectl_manifest" "karpenter_ec2_node_class" {
-  yaml_body = templatefile("${path.module}/examples/karpenter-ec2nodeclass.yaml.tpl", {
-    cluster_name = module.eks.cluster_name
-    node_role    = module.karpenter.node_iam_role_name
-  })
+# resource "kubectl_manifest" "karpenter_ec2_node_class" {
+#   yaml_body = templatefile("${path.module}/examples/karpenter-ec2nodeclass.yaml.tpl", {
+#     cluster_name = module.eks.cluster_name
+#     node_role    = module.karpenter.node_iam_role_name
+#   })
 
-  depends_on = [
-    module.eks,
-    helm_release.karpenter
-  ]
-}
+#   depends_on = [
+#     helm_release.this
+#   ]
+# }
 
-resource "kubectl_manifest" "karpenter_node_pool" {
-  yaml_body = file("${path.module}/examples/karpenter-nodepool.yaml.tpl")
+# resource "kubectl_manifest" "karpenter_node_pool" {
+#   yaml_body = file("${path.module}/examples/karpenter-nodepool.yaml.tpl")
 
-  depends_on = [
-    module.eks,
-    helm_release.karpenter,
-    kubectl_manifest.karpenter_ec2_node_class
-  ]
-}
+#   depends_on = [
+#     helm_release.this,
+#     kubectl_manifest.karpenter_ec2_node_class
+#   ]
+# }
 
 # Wait for Karpenter to process the NodePool and be ready to provision nodes
 # resource "time_sleep" "wait_for_nodepool" {
@@ -220,17 +214,25 @@ resource "helm_release" "this" {
   for_each         = var.helm
   name             = lookup(each.value,"name", each.key) 
   repository       = lookup(each.value, "repository", null)
+  repository_username = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.user_name : lookup(each.value, "repository_username", null)
+  repository_password = each.key == "karpenter" ? data.aws_ecrpublic_authorization_token.token.password : lookup(each.value, "repository_password", null)
   chart            = lookup(each.value, "chart", null)
   version          = lookup(each.value, "version", null)
   create_namespace = lookup(each.value, "create_namespace", false)
   namespace        = lookup(each.value,"namespace", "kube-system")
-  wait             = lookup(each.value,"wait", false)  # Don't wait for all - speeds up deployment
+  wait             = lookup(each.value,"wait", true) 
   timeout          = lookup(each.value,"timeout", 300)
   replace          = lookup(each.value,"replace", true)
   
   # Values loading for different charts
   values = (
-    each.key == "external-dns" ? [
+        each.key == "karpenter" ? [
+      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
+        cluster_name      = module.eks.cluster_name
+        cluster_endpoint  = module.eks.cluster_endpoint
+        interruption_queue = module.karpenter.queue_name
+      })
+    ] : each.key == "external-dns" ? [
       templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
         txt_owner_id = "external-dns-${random_id.external_dns.hex}"
         role_arn     = aws_iam_role.external_dns.arn
@@ -244,14 +246,14 @@ resource "helm_release" "this" {
     ] : []
   )
 
-  # CRITICAL: All other charts depend on Karpenter NodePool being ready to provision nodes
   depends_on = [
-    kubectl_manifest.karpenter_node_pool,
-    kubectl_manifest.karpenter_ec2_node_class
+    module.eks,
+    module.karpenter
   ]
 
   lifecycle {
     ignore_changes = [
+      repository_password,
       metadata[0].app_version,
     ]
   }
@@ -358,4 +360,79 @@ resource "aws_eks_pod_identity_association" "external_dns" {
 #   namespace       = kubernetes_namespace.external_dns.metadata[0].name
 #   service_account = kubernetes_service_account.external_dns.metadata[0].name
 #   role_arn        = aws_iam_role.external_dns.arn
-# } 
+# }
+
+################################################################################
+# ChatApp Secrets Manager Access
+################################################################################
+
+# IAM policy for reading chatapp secrets from AWS Secrets Manager
+resource "aws_iam_policy" "chatapp_secrets_manager" {
+  name        = "chatapp-secrets-manager-policy"
+  description = "Allow ChatApp pods to read secrets from AWS Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:chatapp/*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# IAM role for ChatApp pods with Pod Identity trust policy
+resource "aws_iam_role" "chatapp_secrets" {
+  name               = "chatapp-secrets-role"
+  assume_role_policy = data.aws_iam_policy_document.chatapp_secrets_assume.json
+  
+  tags = local.common_tags
+}
+
+# Trust policy allowing EKS Pod Identity to assume this role
+data "aws_iam_policy_document" "chatapp_secrets_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+    
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [module.eks.cluster_arn]
+    }
+  }
+}
+
+# Attach the Secrets Manager policy to the role
+resource "aws_iam_role_policy_attachment" "chatapp_secrets_attach" {
+  role       = aws_iam_role.chatapp_secrets.name
+  policy_arn = aws_iam_policy.chatapp_secrets_manager.arn
+}
+
+# Pod Identity Association - links ServiceAccount to IAM Role
+resource "aws_eks_pod_identity_association" "chatapp_secrets" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "chatapp-prod"  # Your chatapp namespace
+  service_account = "chatapp-sa"    # ServiceAccount name to use in Helm
+  role_arn        = aws_iam_role.chatapp_secrets.arn
+  
+  tags = local.common_tags
+} 

@@ -3,12 +3,12 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  role: "tnt-eu-observability-dev-eks" 
+  role: "tnt-eu-chatapp-dev-eks" 
   amiSelectorTerms:
     - alias: bottlerocket@latest
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "tnt-eu-observability-dev-eks"
+        karpenter.sh/discovery: "tnt-eu-chatapp-dev-eks"
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "tnt-eu-observability-dev-eks"
+        karpenter.sh/discovery: "tnt-eu-chatapp-dev-eks"

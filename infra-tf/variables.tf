@@ -80,8 +80,8 @@ variable "route53_records" {
   default = []
 }
 
-variable "karpenter_version" {
-  description = "Version of Karpenter Helm chart to deploy"
-  type        = string
-  default     = "1.6.0"
-}
+# variable "karpenter_version" {
+#   description = "Version of Karpenter Helm chart to deploy"
+#   type        = string
+#   default     = "1.6.0"
+# }
