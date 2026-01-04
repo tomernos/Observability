@@ -157,31 +157,33 @@ route53_zones = {
       Environment = "dev"
       Purpose     = "observability"
     }
+    # In v6.1.1, records are configured within zones as a map
+    records = {
+      # A record for the root domain (optional - points to a fixed IP)
+      root = {
+        name    = ""
+        type    = "A"
+        ttl     = 300
+        records = ["1.2.3.4"] # Replace with your actual IP
+      }
+      # CNAME for www subdomain
+      www = {
+        name    = "www"
+        type    = "CNAME"
+        ttl     = 300
+        records = ["tomernos.xyz"]
+      }
+      # Wildcard for subdomains (external-dns will manage service records)
+      wildcard = {
+        name    = "*"
+        type    = "A"
+        ttl     = 300
+        records = ["10.0.0.100"] # Placeholder - external-dns will manage
+      }
+    }
   }
 }
 
-route53_records = [
-  # A record for the root domain (optional - points to a fixed IP)
-  {
-    name    = ""
-    type    = "A"
-    ttl     = 300
-    records = ["1.2.3.4"] # Replace with your actual IP
-    alias   = {}
-  },
-  # CNAME for www subdomain
-  {
-    name    = "www"
-    type    = "CNAME"
-    ttl     = 300
-    records = ["tomernos.xyz"]
-  },
-  # A records for services (external-dns will manage these automatically)
-  # Wildcard for subdomains
-  {
-    name    = "*"
-    type    = "A"
-    ttl     = 300
-    records = ["10.0.0.100"] # Placeholder - external-dns will manage
-  }
-]
+# route53_records variable kept for backward compatibility but not used in v6.1.1
+# Records are now configured within route53_zones
+route53_records = []
