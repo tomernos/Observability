@@ -1,7 +1,7 @@
 // Basic outputs for validation & reference
 output "account_id" {
-	value       = data.aws_caller_identity.current.account_id
-	description = "AWS Account ID"
+  value       = data.aws_caller_identity.current.account_id
+  description = "AWS Account ID"
 }
 
 # output "region" {
@@ -10,15 +10,20 @@ output "account_id" {
 # }
 
 output "availability_zones" {
-	value       = data.aws_availability_zones.available.names
-	description = "AWS Availability Zones"
+  value       = data.aws_availability_zones.available.names
+  description = "AWS Availability Zones"
+}
+
+output "cluster_name" {
+  value       = module.eks.cluster_name
+  description = "EKS cluster name for kubeconfig and Jenkins pipeline"
 }
 
 # Route 53 Outputs
 output "route53_zones" {
   value = {
     for zone_name, zone_data in module.zones.route53_zone_zone_id : zone_name => {
-      zone_id = zone_data
+      zone_id      = zone_data
       name_servers = module.zones.route53_zone_name_servers[zone_name]
     }
   }

@@ -10,7 +10,7 @@ terraform {
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.36" 
+      version = "~> 2.36"
     }
     kubectl = {
       source  = "gavinbunney/kubectl"
@@ -25,6 +25,6 @@ terraform {
     #   version = "~> 0.12"
     # }
   }
-  
+
   #required_version = ">= 1.0"
 }

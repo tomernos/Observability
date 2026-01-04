@@ -44,40 +44,40 @@ variable "tenant_prefix" {
 
 variable "vpcs" {
   description = "Map of VPC definitions keyed by logical name"
-  type = any
+  type        = any
 }
 
 variable "ecr_repositories" {
   description = "Map of ECR repository definitions keyed by logical name"
-  type = any
+  type        = any
 }
 
 variable "eks_clusters" {
   description = "Map of EKS cluster definitions keyed by logical name"
-  type = any
+  type        = any
 }
 
 variable "helm" {
   description = "Map of Helm chart configurations keyed by logical name"
-  type = any
+  type        = any
 }
 
 variable "eks_namespaces" {
   description = "Map of Kubernetes namespace configurations for EKS clusters"
-  type = any
-  default = {}
+  type        = any
+  default     = {}
 }
 
 variable "route53_zones" {
   description = "Map of Route53 zones to create"
-  type = any
-  default = {}
+  type        = any
+  default     = {}
 }
 
 variable "route53_records" {
   description = "List of Route53 records to create"
-  type = any
-  default = []
+  type        = any
+  default     = []
 }
 
 # variable "karpenter_version" {

@@ -1,6 +1,20 @@
 # Karpenter Helm Values Template
 # This file contains the Helm values for Karpenter deployment
 # Variables will be interpolated by Terraform
+#
+# REQUIRED PLACEHOLDERS (must be provided by Terraform templatefile()):
+#   - cluster_name: EKS cluster name (e.g., "tnt-eu-observability-dev-eks")
+#   - cluster_endpoint: EKS cluster API endpoint URL
+#   - interruption_queue: SQS queue name for spot instance interruption handling
+#   - pod_identity_association_arn: ARN of the EKS Pod Identity Association for Karpenter service account
+#
+# Usage in Terraform:
+#   templatefile("${path.module}/examples/karpenter-values.yaml.tpl", {
+#     cluster_name                = module.eks.cluster_name
+#     cluster_endpoint            = module.eks.cluster_endpoint
+#     interruption_queue          = module.karpenter.queue_name
+#     pod_identity_association_arn = module.karpenter.pod_identity_association_arn
+#   })
 
 settings:
   # Cluster identification - CRITICAL for Karpenter discovery
