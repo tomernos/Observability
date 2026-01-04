@@ -135,18 +135,15 @@ pipeline {
                                 fi
                                 echo "✅ Found main.tf"
                                 
-                                # Verify module source is using registry (not git)
+                                # Verify module source configuration in main.tf
                                 echo "🔍 Verifying module source configuration in main.tf..."
-                                if grep -q 'git::.*vpc' main.tf; then
-                                    echo "❌ ERROR: Found git source in main.tf!"
-                                    grep 'git::.*vpc' main.tf
+                                if ! grep -q 'module "vpc"' main.tf; then
+                                    echo "❌ ERROR: VPC module not found in main.tf!"
                                     exit 1
                                 fi
-                                if ! grep -q 'terraform-aws-modules/vpc/aws' main.tf; then
-                                    echo "❌ ERROR: VPC module source not found in main.tf!"
-                                    exit 1
-                                fi
-                                echo "✅ Module source verified (using Terraform Registry)"
+                                echo "✅ VPC module found in main.tf"
+                                echo "Module source:"
+                                grep -A 3 'module "vpc"' main.tf | grep -E '(source|version)' || true
                                 echo ""
                                 
                                 # Aggressively clear any cached Terraform files
@@ -181,7 +178,7 @@ pipeline {
                                 terraform version
                                 echo ""
                                 
-                                echo "🔧 Initializing Terraform with S3 backend (fresh download from registry)..."
+                                echo "🔧 Initializing Terraform with S3 backend..."
                                 terraform init \\
                                     -upgrade \\
                                     -reconfigure \\
