@@ -315,12 +315,13 @@ module "records" {
   source  = "terraform-aws-modules/route53/aws"
   version = "6.1.1"
 
-  zone_name = keys(var.route53_zones)[0] # Use first zone
-  zone_id   = module.zones.route53_zone_zone_id[keys(var.route53_zones)[0]]
-
-  records = var.route53_records
-
-  depends_on = [module.zones]
+  # In v6.x, records are passed as part of zones configuration
+  # Records are configured within the zones module, not separately
+  # Commenting out records module - configure records in zones module instead
+  # zone_name = keys(var.route53_zones)[0]
+  # zone_id   = module.zones.route53_zone_zone_id[keys(var.route53_zones)[0]]
+  # records = var.route53_records
+  # depends_on = [module.zones]
 }
 
 # External DNS Resources
