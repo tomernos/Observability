@@ -251,7 +251,6 @@ resource "helm_release" "this" {
   lifecycle {
     ignore_changes = [
       repository_password,
-      metadata[0].app_version,
     ]
   }
 }
