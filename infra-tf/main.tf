@@ -303,8 +303,8 @@ resource "aws_iam_policy" "external_dns_r53" {
 }
 
 module "zones" {
-  source  = "terraform-aws-modules/route53/aws//modules/zones"
-  version = "5.8.0"  # Using version 5.x where submodules exist (6.0+ removed them)
+  source  = "terraform-aws-modules/route53/aws"
+  version = "6.1.1"
 
   zones = var.route53_zones
 
@@ -312,8 +312,8 @@ module "zones" {
 }
 
 module "records" {
-  source  = "terraform-aws-modules/route53/aws//modules/records"
-  version = "5.8.0"  # Using version 5.x where submodules exist (6.0+ removed them)
+  source  = "terraform-aws-modules/route53/aws"
+  version = "6.1.1"
 
   zone_name = keys(var.route53_zones)[0] # Use first zone
   zone_id   = module.zones.route53_zone_zone_id[keys(var.route53_zones)[0]]
