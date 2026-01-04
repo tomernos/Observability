@@ -302,13 +302,20 @@ resource "aws_iam_policy" "external_dns_r53" {
   })
 }
 
+# Route53 zones - In v6.1.1, create zones using for_each with zone structure
 module "zones" {
   source  = "terraform-aws-modules/route53/aws"
   version = "6.1.1"
 
-  zones = var.route53_zones
+  for_each = var.route53_zones
 
-  tags = local.common_tags
+  # In v6.x, structure changed - each zone is configured individually
+  name    = each.key
+  comment = try(each.value.comment, null)
+  tags    = merge(local.common_tags, try(each.value.tags, {}))
+
+  # Records can be included in each zone configuration
+  records = try(each.value.records, {})
 }
 
 # Records module removed in v6.x - records are now configured within zones
