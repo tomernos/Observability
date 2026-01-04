@@ -1,0 +1,262 @@
+@Library('jenkins-shared-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'debian:bookworm-slim'
+            args '-v /var/run/docker.sock:/var/run/docker.sock -u root'
+        }
+    }
+
+    options {
+        timeout(time: 2, unit: 'HOURS')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
+
+    environment {
+        AWS_REGION = 'eu-central-1'
+        AWS_CREDENTIALS_ID = 'aws-creds'
+        CLUSTER_NAME = 'tnt-eu-observability-dev-eks'
+        
+        // Terraform state backend
+        TF_STATE_BUCKET = 'tnt-eu-observability-dev-tf'
+        TF_STATE_KEY = 'tnt-eu-observability-dev-tf.tfstate'
+        TF_STATE_REGION = 'eu-central-1'
+        TF_LOCK_TABLE = 'tnt-eu-observability-dev-tf-locks'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout this repository (Observability)
+                checkout scm
+            }
+        }
+
+        stage('Install Tools') {
+            steps {
+                script {
+                    logMessage('Installing required tools', '📦')
+                    
+                    sh '''
+                        set -e
+                        apt-get update -qq
+                        apt-get install -y -qq curl unzip wget ca-certificates gnupg lsb-release
+                        
+                        # Install Terraform
+                        TERRAFORM_VERSION=1.14.3
+                        wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+                        unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /usr/local/bin
+                        rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+                        chmod +x /usr/local/bin/terraform
+                        
+                        # Install AWS CLI v2
+                        if ! command -v aws &> /dev/null; then
+                            echo "📦 Installing AWS CLI v2..."
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip -q awscliv2.zip
+                            ./aws/install
+                            rm -rf awscliv2.zip aws
+                            echo "✅ AWS CLI installed"
+                        else
+                            echo "✅ AWS CLI already installed"
+                        fi
+                        
+                        # Cleanup
+                        apt-get clean
+                        rm -rf /var/lib/apt/lists/*
+                        
+                        # Verify tools
+                        echo "🔍 Verifying installed tools..."
+                        terraform version
+                        aws --version
+                        echo "✅ All tools installed successfully"
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                script {
+                    logMessage('Initializing Terraform', '🔧')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh """
+                                # Verify Terraform files exist
+                                echo "🔍 Verifying Terraform configuration files..."
+                                if [ ! -f "main.tf" ]; then
+                                    echo "❌ Error: main.tf not found in infra-tf"
+                                    echo "Current directory: \$(pwd)"
+                                    echo "Files in directory:"
+                                    ls -la
+                                    exit 1
+                                fi
+                                echo "✅ Found main.tf"
+                                
+                                echo "🔧 Initializing Terraform with S3 backend..."
+                                terraform init \\
+                                    -backend-config="bucket=${TF_STATE_BUCKET}" \\
+                                    -backend-config="key=${TF_STATE_KEY}" \\
+                                    -backend-config="region=${TF_STATE_REGION}" \\
+                                    -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+                                
+                                echo "✅ Terraform initialized"
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                script {
+                    logMessage('Validating Terraform configuration', '✅')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh '''
+                                # Verify directory and files
+                                echo "Current directory: $(pwd)"
+                                if [ ! -f "main.tf" ]; then
+                                    echo "❌ Error: main.tf not found!"
+                                    echo "Directory contents:"
+                                    ls -la
+                                    exit 1
+                                fi
+                                echo "✅ Found main.tf"
+                                
+                                terraform fmt -check -diff || true
+                                terraform validate
+                                echo "✅ Terraform configuration is valid"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                script {
+                    logMessage('Running Terraform plan', '📋')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh '''
+                                # Verify directory and files
+                                echo "Current directory: $(pwd)"
+                                if [ ! -f "main.tf" ]; then
+                                    echo "❌ Error: main.tf not found!"
+                                    echo "Directory contents:"
+                                    ls -la
+                                    exit 1
+                                fi
+                                echo "✅ Found main.tf"
+                                
+                                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                                export AWS_DEFAULT_REGION=eu-central-1
+                                
+                                echo "🔍 Running terraform plan..."
+                                terraform plan -out=tfplan
+                                echo "✅ Terraform plan completed"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    logMessage('Applying Terraform changes', '🚀')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh '''
+                                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                                export AWS_DEFAULT_REGION=eu-central-1
+                                
+                                echo "🚀 Applying Terraform changes..."
+                                terraform apply -auto-approve tfplan
+                                echo "✅ Terraform apply completed"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Output Cluster Info') {
+            steps {
+                script {
+                    logMessage('Retrieving cluster information', '📊')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh '''
+                                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                                export AWS_DEFAULT_REGION=eu-central-1
+                                
+                                echo "📊 Cluster Information:"
+                                terraform output -json || echo "⚠️  No outputs available yet"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "🏁 Infrastructure pipeline completed"
+            }
+        }
+        success {
+            script {
+                echo "✅ Infrastructure pipeline succeeded"
+            }
+        }
+        failure {
+            script {
+                echo "❌ Infrastructure pipeline failed"
+            }
+        }
+    }
+}
+
