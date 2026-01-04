@@ -31,15 +31,39 @@ pipeline {
             steps {
                 script {
                     logMessage('Cleaning workspace', '🧹')
+                    // Clean workspace and also manually remove any Terraform cache at workspace root
                     cleanWs()
+                    sh '''
+                        # Also manually clean any Terraform files that might persist
+                        echo "🧹 Additional cleanup of Terraform cache files..."
+                        find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
+                        find . -name ".terraform.lock.hcl" -type f -delete 2>/dev/null || true
+                        find . -name ".terraform.lock.hcl.backup" -type f -delete 2>/dev/null || true
+                        echo "✅ Workspace cleaned"
+                    '''
                 }
             }
         }
 
         stage('Checkout') {
             steps {
-                // Checkout this repository (Observability)
-                checkout scm
+                script {
+                    // Checkout this repository (Observability)
+                    checkout scm
+                    
+                    // Verify no lock files were checked out
+                    sh '''
+                        echo "🔍 Checking for any Terraform lock files after checkout..."
+                        if find . -name ".terraform.lock.hcl" -type f | grep -q .; then
+                            echo "⚠️  WARNING: Found .terraform.lock.hcl files in repository!"
+                            find . -name ".terraform.lock.hcl" -type f
+                            echo "Removing them..."
+                            find . -name ".terraform.lock.hcl" -type f -delete
+                        else
+                            echo "✅ No lock files found in repository"
+                        fi
+                    '''
+                }
             }
         }
 
