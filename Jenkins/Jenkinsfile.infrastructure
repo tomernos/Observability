@@ -75,7 +75,10 @@ pipeline {
                     sh '''
                         set -e
                         apt-get update -qq
-                        apt-get install -y -qq curl unzip wget ca-certificates gnupg lsb-release
+                        apt-get install -y -qq curl unzip wget ca-certificates gnupg lsb-release git
+                        
+                        # Verify git is installed
+                        git --version
                         
                         # Install Terraform
                         TERRAFORM_VERSION=1.14.3
@@ -173,9 +176,17 @@ pipeline {
                                 grep -A 3 'module "vpc"' main.tf | grep -E '(source|version)' || true
                                 echo ""
                                 
-                                # Show Terraform version for debugging
+                                # Show Terraform and Git versions for debugging
                                 echo "🔍 Terraform version:"
                                 terraform version
+                                echo ""
+                                echo "🔍 Git version:"
+                                git --version
+                                echo ""
+                                
+                                # Test git access to GitHub
+                                echo "🔍 Testing git access to GitHub..."
+                                timeout 10 git ls-remote --heads https://github.com/terraform-aws-modules/terraform-aws-vpc.git v6.4.0 || echo "⚠️  Git test completed (may timeout if network issue)"
                                 echo ""
                                 
                                 echo "🔧 Initializing Terraform with S3 backend..."
