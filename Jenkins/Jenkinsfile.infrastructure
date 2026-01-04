@@ -176,9 +176,9 @@ pipeline {
                                 grep -A 3 'module "vpc"' main.tf | grep -E '(source|version)' || true
                                 echo ""
                                 
-                                # Check available versions from registry (for debugging)
-                                echo "🔍 Checking available VPC module versions from registry..."
-                                terraform init -upgrade -backend=false 2>&1 | grep -i "vpc" | head -5 || echo "Version check completed"
+                                # Show Terraform version for debugging
+                                echo "🔍 Terraform version:"
+                                terraform version
                                 echo ""
                                 
                                 echo "🔧 Initializing Terraform with S3 backend (fresh download from registry)..."
