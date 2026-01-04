@@ -4,8 +4,8 @@ data "aws_ecrpublic_authorization_token" "token" {
 
 module "vpc" {
   for_each = var.vpcs
-  # Using git source with tag to avoid registry git commit ref issues
-  source   = "git::https://github.com/terraform-aws-modules/terraform-aws-vpc.git?ref=v5.8.1"
+  source   = "terraform-aws-modules/vpc/aws"
+  version  = "~> 6.0"  # Use version range - Terraform will resolve to latest compatible 6.x version
 
   # Details
   name            = "${local.region_prefix}-vpc"
