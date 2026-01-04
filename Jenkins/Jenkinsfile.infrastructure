@@ -98,26 +98,21 @@ pipeline {
                     )]) {
                         dir('infra-tf') {
                             sh """
+                                set -e  # Exit on error
+                                
                                 # Verify Terraform files exist
                                 echo "🔍 Verifying Terraform configuration files..."
+                                echo "Current directory: \$(pwd)"
                                 if [ ! -f "main.tf" ]; then
                                     echo "❌ Error: main.tf not found in infra-tf"
-                                    echo "Current directory: \$(pwd)"
                                     echo "Files in directory:"
                                     ls -la
                                     exit 1
                                 fi
                                 echo "✅ Found main.tf"
                                 
-                                # Clear any cached Terraform files to ensure fresh download from registry
-                                echo "🧹 Cleaning Terraform cache..."
-                                rm -rf .terraform .terraform.lock.hcl .terraform.lock.hcl.backup
-                                find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
-                                find . -name ".terraform.lock.hcl" -type f -delete 2>/dev/null || true
-                                echo "✅ Cache cleared"
-                                
                                 # Verify module source is using registry (not git)
-                                echo "🔍 Verifying module source configuration..."
+                                echo "🔍 Verifying module source configuration in main.tf..."
                                 if grep -q 'git::.*vpc' main.tf; then
                                     echo "❌ ERROR: Found git source in main.tf!"
                                     grep 'git::.*vpc' main.tf
@@ -128,16 +123,58 @@ pipeline {
                                     exit 1
                                 fi
                                 echo "✅ Module source verified (using Terraform Registry)"
+                                echo ""
                                 
-                                echo "🔧 Initializing Terraform with S3 backend..."
+                                # Aggressively clear any cached Terraform files
+                                echo "🧹 Aggressively cleaning Terraform cache..."
+                                echo "Before cleanup - checking for cache files:"
+                                ls -la .terraform 2>/dev/null || echo "No .terraform directory"
+                                ls -la .terraform.lock.hcl 2>/dev/null || echo "No .terraform.lock.hcl file"
+                                
+                                # Remove all Terraform cache files
+                                rm -rf .terraform .terraform.lock.hcl .terraform.lock.hcl.backup
+                                find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
+                                find . -name ".terraform.lock.hcl" -type f -delete 2>/dev/null || true
+                                find . -name ".terraform.lock.hcl.backup" -type f -delete 2>/dev/null || true
+                                
+                                echo "After cleanup - verifying cache is removed:"
+                                if [ -d ".terraform" ] || [ -f ".terraform.lock.hcl" ]; then
+                                    echo "⚠️  WARNING: Cache files still exist!"
+                                    ls -la .terraform 2>/dev/null || true
+                                    ls -la .terraform.lock.hcl 2>/dev/null || true
+                                else
+                                    echo "✅ Cache cleared successfully"
+                                fi
+                                echo ""
+                                
+                                # Show module source from main.tf to confirm
+                                echo "📋 VPC module source from main.tf:"
+                                grep -A 3 'module "vpc"' main.tf | grep -E '(source|version)' || true
+                                echo ""
+                                
+                                echo "🔧 Initializing Terraform with S3 backend (fresh download from registry)..."
                                 terraform init \\
                                     -upgrade \\
+                                    -reconfigure \\
                                     -backend-config="bucket=${TF_STATE_BUCKET}" \\
                                     -backend-config="key=${TF_STATE_KEY}" \\
                                     -backend-config="region=${TF_STATE_REGION}" \\
                                     -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
                                 
-                                echo "✅ Terraform initialized"
+                                echo ""
+                                echo "✅ Terraform initialized successfully"
+                                
+                                # Verify lock file was created with registry source
+                                if [ -f ".terraform.lock.hcl" ]; then
+                                    echo "🔍 Verifying lock file uses registry (not git)..."
+                                    if grep -q "registry.terraform.io/terraform-aws-modules/vpc/aws" .terraform.lock.hcl; then
+                                        echo "✅ Lock file correctly uses Terraform Registry"
+                                    elif grep -q "git::" .terraform.lock.hcl; then
+                                        echo "❌ ERROR: Lock file still contains git source!"
+                                        grep "git::" .terraform.lock.hcl | head -5
+                                        exit 1
+                                    fi
+                                fi
                             """
                         }
                     }
