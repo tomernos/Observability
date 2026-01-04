@@ -219,10 +219,21 @@ askchat.txt
 !**/*-template.*
 !**/*-example.*
 
-# Documentation
+# Documentation - Only track important docs, ignore general .md files
 !README.md
 !**/README.md
-!**/*.md
+!**/GUIDE*.md
+!**/SETUP*.md
+!**/QUICK*.md
+# Ignore general .md files (like FIX_MODULE_SOURCE.md, TERRAFORM_MODULE_VERSIONING.md, etc.)
+**/*.md
+# But keep exceptions for important documentation
+!README.md
+!**/README.md
+!**/GUIDE*.md
+!**/SETUP*.md
+!**/QUICK*.md
+!**/INDEX*.md
 
 # Public keys in specific contexts (deployment keys, etc.)
 !**/deploy-key.pub
