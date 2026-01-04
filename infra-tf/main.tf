@@ -4,8 +4,7 @@ data "aws_ecrpublic_authorization_token" "token" {
 
 module "vpc" {
   for_each = var.vpcs
-  source   = "terraform-aws-modules/vpc/aws"
-  version  = "~> 6.0"  # Use version range - Terraform will resolve to latest compatible 6.x version
+  source   = "git::https://github.com/terraform-aws-modules/terraform-aws-vpc.git?ref=v6.4.0"
 
   # Details
   name            = "${local.region_prefix}-vpc"
@@ -84,8 +83,7 @@ module "vpc" {
 # }
 
 module "eks" {
-  source             = "terraform-aws-modules/eks/aws"
-  version            = "21.9.0" # Updated to latest stable release
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git?ref=v21.10.1"
   kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   name = local.cluster_name
@@ -112,8 +110,7 @@ module "eks" {
 # Karpenter - Modern node autoscaling for Kubernetes
 # This creates the IAM roles and policies needed for Karpenter
 module "karpenter" {
-  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "21.9.0"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git//modules/karpenter?ref=v21.10.1"
 
   cluster_name = module.eks.cluster_name
 
@@ -306,8 +303,7 @@ resource "aws_iam_policy" "external_dns_r53" {
 }
 
 module "zones" {
-  source  = "terraform-aws-modules/route53/aws//modules/zones"
-  version = "5.0.0"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-route53.git//modules/zones?ref=v6.1.1"
 
   zones = var.route53_zones
 
@@ -315,8 +311,7 @@ module "zones" {
 }
 
 module "records" {
-  source  = "terraform-aws-modules/route53/aws//modules/records"
-  version = "5.0.0"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-route53.git//modules/records?ref=v6.1.1"
 
   zone_name = keys(var.route53_zones)[0] # Use first zone
   zone_id   = module.zones.route53_zone_zone_id[keys(var.route53_zones)[0]]
