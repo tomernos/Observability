@@ -102,11 +102,27 @@ pipeline {
                                 
                                 # Clear any cached Terraform files to ensure fresh download from registry
                                 echo "🧹 Cleaning Terraform cache..."
-                                rm -rf .terraform .terraform.lock.hcl
+                                rm -rf .terraform .terraform.lock.hcl .terraform.lock.hcl.backup
+                                find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
+                                find . -name ".terraform.lock.hcl" -type f -delete 2>/dev/null || true
                                 echo "✅ Cache cleared"
+                                
+                                # Verify module source is using registry (not git)
+                                echo "🔍 Verifying module source configuration..."
+                                if grep -q 'git::.*vpc' main.tf; then
+                                    echo "❌ ERROR: Found git source in main.tf!"
+                                    grep 'git::.*vpc' main.tf
+                                    exit 1
+                                fi
+                                if ! grep -q 'terraform-aws-modules/vpc/aws' main.tf; then
+                                    echo "❌ ERROR: VPC module source not found in main.tf!"
+                                    exit 1
+                                fi
+                                echo "✅ Module source verified (using Terraform Registry)"
                                 
                                 echo "🔧 Initializing Terraform with S3 backend..."
                                 terraform init \\
+                                    -upgrade \\
                                     -backend-config="bucket=${TF_STATE_BUCKET}" \\
                                     -backend-config="key=${TF_STATE_KEY}" \\
                                     -backend-config="region=${TF_STATE_REGION}" \\
