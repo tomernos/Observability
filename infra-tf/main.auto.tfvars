@@ -161,7 +161,7 @@ route53_zones = {
     records = {
       # A record for the root domain (optional - points to a fixed IP)
       root = {
-        name    = ""
+        name    = "@"  # "@" represents the root domain (apex)
         type    = "A"
         ttl     = 300
         records = ["1.2.3.4"] # Replace with your actual IP
