@@ -52,35 +52,38 @@ module "vpc" {
   #   map_public_ip_on_launch = true
 }
 
-# module "ecr" {
-#   for_each = var.ecr_repositories
-#   source   = "terraform-aws-modules/ecr/aws"
-#   version  = "2.3.1"
+module "ecr" {
+  for_each = var.ecr_repositories
+  source   = "terraform-aws-modules/ecr/aws"
+  version  = "3.1.0"
 
-#   repository_name                   = "${local.region_prefix}-${each.key}"
-#   repository_read_write_access_arns = [data.aws_caller_identity.current.arn]
-#   create_lifecycle_policy           = true
+  repository_name = each.key  # Use key directly (e.g., "connecthub-backend", "connecthub-frontend")
+  
+  # Access control
+  repository_read_write_access_arns = [data.aws_caller_identity.current.arn]
+  
+  # Lifecycle policy
+  create_lifecycle_policy = true
+  repository_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1,
+        description  = "Keep last ${each.value.max_image_count} images",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = each.value.tag_prefix_list,
+          countType     = "imageCountMoreThan",
+          countNumber   = each.value.max_image_count
+        },
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 
-#   repository_lifecycle_policy = jsonencode({
-#     rules = [
-#       {
-#         rulePriority = 1,
-#         description  = "Keep last ${each.value.max_image_count} images",
-#         selection = {
-#           tagStatus     = "tagged",
-#           tagPrefixList = each.value.tag_prefix_list,
-#           countType     = "imageCountMoreThan",
-#           countNumber   = each.value.max_image_count
-#         },
-#         action = {
-#           type = "expire"
-#         }
-#       }
-#     ]
-#   })
-
-#   tags = merge(local.tags, each.value.tags)
-# }
+  tags = merge(local.common_tags, try(each.value.tags, {}))
+}
 
 module "eks" {
   source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git?ref=v21.10.1"

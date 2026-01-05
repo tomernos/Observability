@@ -83,3 +83,15 @@ output "chatapp_pod_identity_association" {
   }
   description = "ChatApp Pod Identity Association details"
 }
+
+# ECR Repository Outputs
+output "ecr_repositories" {
+  value = {
+    for repo_name, repo_module in module.ecr : repo_name => {
+      repository_url = repo_module.repository_url
+      repository_arn = repo_module.repository_arn
+      repository_name = repo_module.repository_name
+    }
+  }
+  description = "ECR repository URLs and ARNs - Use these in CI/CD pipelines"
+}

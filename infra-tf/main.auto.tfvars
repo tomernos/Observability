@@ -18,10 +18,10 @@ vpcs = {
 }
 
 ecr_repositories = {
-  acr = {
+  chatapp = {
     max_image_count = 30
     tag_prefix_list = ["v", "latest"]
-    tags            = { Component = "application" }
+    tags            = { Application = "chatapp", Environment = "dev" }
   }
 }
 
