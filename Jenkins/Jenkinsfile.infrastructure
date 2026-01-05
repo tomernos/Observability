@@ -8,6 +8,14 @@ pipeline {
         }
     }
 
+    parameters {
+        choice(
+            name: 'TERRAFORM_ACTION',
+            choices: ['plan', 'plan-and-apply', 'destroy'],
+            description: 'Select Terraform action: plan (plan only), plan-and-apply (plan + apply), or destroy'
+        )
+    }
+
     options {
         timeout(time: 2, unit: 'HOURS')
         timestamps()
@@ -24,6 +32,9 @@ pipeline {
         TF_STATE_KEY = 'tnt-eu-observability-dev-tf.tfstate'
         TF_STATE_REGION = 'eu-central-1'
         TF_LOCK_TABLE = 'tnt-eu-observability-dev-tf-locks'
+        
+        // Terraform action parameter (defaults to 'plan' if not set)
+        TERRAFORM_ACTION = "${params.TERRAFORM_ACTION ?: 'plan'}"
     }
 
     stages {
@@ -252,6 +263,12 @@ pipeline {
         }
 
         stage('Terraform Plan') {
+            when {
+                anyOf {
+                    expression { params.TERRAFORM_ACTION == 'plan' }
+                    expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
+                }
+            }
             steps {
                 script {
                     logMessage('Running Terraform plan', '📋')
@@ -289,10 +306,7 @@ pipeline {
 
         stage('Terraform Apply') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
+                expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
             }
             steps {
                 script {
@@ -319,7 +333,43 @@ pipeline {
             }
         }
 
+        stage('Terraform Destroy') {
+            when {
+                expression { params.TERRAFORM_ACTION == 'destroy' }
+            }
+            steps {
+                script {
+                    logMessage('Destroying Terraform infrastructure', '💥')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        dir('infra-tf') {
+                            sh '''
+                                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                                export AWS_DEFAULT_REGION=eu-central-1
+                                
+                                echo "💥 WARNING: Destroying all Terraform-managed infrastructure..."
+                                echo "This action cannot be undone!"
+                                terraform destroy -auto-approve
+                                echo "✅ Terraform destroy completed"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Output Cluster Info') {
+            when {
+                anyOf {
+                    expression { params.TERRAFORM_ACTION == 'plan' }
+                    expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
+                }
+            }
             steps {
                 script {
                     logMessage('Retrieving cluster information', '📊')
