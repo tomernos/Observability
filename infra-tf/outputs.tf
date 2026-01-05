@@ -81,7 +81,16 @@ output "chatapp_pod_identity_association" {
     service_account = aws_eks_pod_identity_association.chatapp_secrets.service_account
     role_arn        = aws_eks_pod_identity_association.chatapp_secrets.role_arn
   }
-  description = "ChatApp Pod Identity Association details"
+  description = "ChatApp Pod Identity Association details (PROD)"
+}
+
+output "chatapp_pod_identity_association_dev" {
+  value = {
+    namespace       = aws_eks_pod_identity_association.chatapp_secrets_dev.namespace
+    service_account = aws_eks_pod_identity_association.chatapp_secrets_dev.service_account
+    role_arn        = aws_eks_pod_identity_association.chatapp_secrets_dev.role_arn
+  }
+  description = "ChatApp Pod Identity Association details (DEV)"
 }
 
 # ECR Repository Outputs

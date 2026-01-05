@@ -424,12 +424,22 @@ resource "aws_iam_role_policy_attachment" "chatapp_secrets_attach" {
   policy_arn = aws_iam_policy.chatapp_secrets_manager.arn
 }
 
-# Pod Identity Association - links ServiceAccount to IAM Role
+# Pod Identity Association - links ServiceAccount to IAM Role (PROD)
 resource "aws_eks_pod_identity_association" "chatapp_secrets" {
   cluster_name    = module.eks.cluster_name
-  namespace       = "chatapp-prod" # Your chatapp namespace
+  namespace       = "chatapp-prod" # Production namespace
   service_account = "chatapp-sa"   # ServiceAccount name to use in Helm
   role_arn        = aws_iam_role.chatapp_secrets.arn
+
+  tags = local.common_tags
+}
+
+# Pod Identity Association - links ServiceAccount to IAM Role (DEV)
+resource "aws_eks_pod_identity_association" "chatapp_secrets_dev" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "chatapp-dev" # Development namespace
+  service_account = "chatapp-sa"   # Same ServiceAccount name
+  role_arn        = aws_iam_role.chatapp_secrets.arn  # Same IAM role
 
   tags = local.common_tags
 } 
