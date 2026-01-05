@@ -22,16 +22,18 @@ output "cluster_name" {
 # Route 53 Outputs
 output "route53_zones" {
   value = {
-    for zone_name, zone_data in module.zones.route53_zone_zone_id : zone_name => {
-      zone_id      = zone_data
-      name_servers = module.zones.route53_zone_name_servers[zone_name]
+    for zone_name, zone_module in module.zones : zone_name => {
+      zone_id      = zone_module.zone_id
+      name_servers = zone_module.name_servers
     }
   }
   description = "Route53 zones with their IDs and name servers"
 }
 
 output "route53_zone_name_servers" {
-  value       = module.zones.route53_zone_name_servers
+  value = {
+    for zone_name, zone_module in module.zones : zone_name => zone_module.name_servers
+  }
   description = "Name servers for the Route53 zones - Configure these in your domain registrar"
 }
 
