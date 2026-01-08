@@ -206,8 +206,8 @@ pipeline {
                                     -reconfigure \\
                                     -backend-config="bucket=${TF_STATE_BUCKET}" \\
                                     -backend-config="key=${TF_STATE_KEY}" \\
-                                    -backend-config="region=${TF_STATE_REGION}" \\
-                                    -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+                                    -backend-config="region=${TF_STATE_REGION}"
+                                    # -backend-config="dynamodb_table=\${TF_LOCK_TABLE}"  # This is used for locking the state file
                                 
                                 echo ""
                                 echo "✅ Terraform initialized successfully"

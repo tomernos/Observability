@@ -442,4 +442,14 @@ resource "aws_eks_pod_identity_association" "chatapp_secrets_dev" {
   role_arn        = aws_iam_role.chatapp_secrets.arn  # Same IAM role
 
   tags = local.common_tags
+}
+
+# Pod Identity Association - links ServiceAccount to IAM Role (STAGING)
+resource "aws_eks_pod_identity_association" "chatapp_secrets_staging" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "chatapp-staging" # Staging namespace
+  service_account = "chatapp-sa"      # Same ServiceAccount name
+  role_arn        = aws_iam_role.chatapp_secrets.arn  # Same IAM role
+
+  tags = local.common_tags
 } 

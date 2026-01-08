@@ -3,7 +3,7 @@ terraform {
     bucket         = "tnt-eu-observability-dev-tf"
     key            = "tnt-eu-observability-dev-tf.tfstate"
     region         = "eu-central-1"
-    dynamodb_table = "tnt-eu-observability-dev-tf-locks"
+    # dynamodb_table = "tnt-eu-observability-dev-tf-locks"  # Commented out - uncomment when needed
     encrypt        = true
   }
 }
