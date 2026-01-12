@@ -11,8 +11,10 @@ vpcs = {
     cidr                 = "10.10.0.0/16"
     public_subnet_bits   = 8 # /24 per AZ for public
     private_subnet_bits  = 8 # /24 per AZ for private
-    enable_dns_hostnames = true
-    enable_dns_support   = true
+    #enable_dns_hostnames = true
+    #enable_dns_support   = true
+    enable_nat_gateway   = true
+    single_nat_gateway   = true
     tags                 = { Purpose = "core-network" }
   }
 }

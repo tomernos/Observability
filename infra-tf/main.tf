@@ -4,9 +4,9 @@ data "aws_ecrpublic_authorization_token" "token" {
 
 module "vpc" {
   for_each = var.vpcs
-  source   = "terraform-aws-modules/vpc/aws"
-  version   = "6.4.0"
-
+  source   = "git::https://github.com/terraform-aws-modules/terraform-aws-vpc.git?ref=v6.4.0"
+  #source   = "terraform-aws-modules/vpc/aws"
+  #version   = "6.4.0"
   # Details
   name            = "${local.region_prefix}-vpc"
   cidr            = lookup(each.value, "cidr", "10.0.0.0/16")
@@ -55,8 +55,9 @@ module "vpc" {
 
 module "ecr" {
   for_each = var.ecr_repositories
-  source   = "terraform-aws-modules/ecr/aws"
-  version  = "3.1.0"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-ecr.git?ref=v3.1.0"
+  #source   = "terraform-aws-modules/ecr/aws"
+  #version  = "3.1.0"
 
   repository_name = each.key  # Use key directly (e.g., "connecthub-backend", "connecthub-frontend")
   
@@ -87,8 +88,9 @@ module "ecr" {
 }
 
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "21.10.1"
+  #source  = "terraform-aws-modules/eks/aws"
+  #version = "21.10.1"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git?ref=v21.10.1"
   kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   name = local.cluster_name
@@ -115,8 +117,9 @@ module "eks" {
 # Karpenter - Modern node autoscaling for Kubernetes
 # This creates the IAM roles and policies needed for Karpenter
 module "karpenter" {
-  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "21.10.1"
+  #source  = "terraform-aws-modules/eks/aws//modules/karpenter"
+  #version = "21.10.1"
+  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git//modules/karpenter?ref=v21.10.1"
 
   cluster_name = module.eks.cluster_name
 
