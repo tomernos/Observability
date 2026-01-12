@@ -4,7 +4,8 @@ data "aws_ecrpublic_authorization_token" "token" {
 
 module "vpc" {
   for_each = var.vpcs
-  source   = "git::https://github.com/terraform-aws-modules/terraform-aws-vpc.git?ref=v6.4.0"
+  source   = "terraform-aws-modules/vpc/aws"
+  version   = "6.4.0"
 
   # Details
   name            = "${local.region_prefix}-vpc"
@@ -36,8 +37,8 @@ module "vpc" {
 
   # Karpenter discovery tags for subnets
   public_subnet_tags = {
-    "karpenter.sh/discovery" = "${local.cluster_name}"
-    "kubernetes.io/role/elb" = 1
+    "karpenter.sh/discovery"          = "${local.cluster_name}"
+    "kubernetes.io/role/elb"          = 1
   }
   private_subnet_tags = {
     "karpenter.sh/discovery"          = "${local.cluster_name}"
@@ -86,7 +87,8 @@ module "ecr" {
 }
 
 module "eks" {
-  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git?ref=v21.10.1"
+  source  = "terraform-aws-modules/eks/aws"
+  version = "21.10.1"
   kubernetes_version = var.eks_clusters.eks.kubernetes_version
 
   name = local.cluster_name
@@ -113,7 +115,8 @@ module "eks" {
 # Karpenter - Modern node autoscaling for Kubernetes
 # This creates the IAM roles and policies needed for Karpenter
 module "karpenter" {
-  source = "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git//modules/karpenter?ref=v21.10.1"
+  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version = "21.10.1"
 
   cluster_name = module.eks.cluster_name
 
@@ -416,6 +419,29 @@ data "aws_iam_policy_document" "chatapp_secrets_assume" {
       values   = [module.eks.cluster_arn]
     }
   }
+
+  # Statement for IRSA (OIDC) - temporary workaround for Pod Identity agent issue
+  # statement {
+  #   effect  = "Allow"
+  #   actions = ["sts:AssumeRoleWithWebIdentity"]
+
+  #   principals {
+  #     type        = "Federated"
+  #     identifiers = [data.aws_iam_openid_connect_provider.eks.arn]
+  #   }
+
+  #   condition {
+  #     test     = "StringEquals"
+  #     variable = "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub"
+  #     values   = ["system:serviceaccount:chatapp-dev:chatapp-sa", "system:serviceaccount:chatapp-staging:chatapp-sa", "system:serviceaccount:chatapp-prod:chatapp-sa"]
+  #   }
+
+  #   condition {
+  #     test     = "StringEquals"
+  #     variable = "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud"
+  #     values   = ["sts.amazonaws.com"]
+  #   }
+  # }
 }
 
 # Attach the Secrets Manager policy to the role
