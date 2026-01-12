@@ -25,6 +25,7 @@ pipeline {
     environment {
         AWS_REGION = 'eu-central-1'
         AWS_CREDENTIALS_ID = 'aws-creds'
+        GIT_CREDENTIALS_ID = 'gitpat'  // GitHub PAT for repository checkout
         CLUSTER_NAME = 'tnt-eu-observability-dev-eks'
         
         // Terraform state backend
@@ -59,8 +60,16 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    // Checkout this repository (Observability)
-                    checkout scm
+                    // Checkout this repository (Observability) with Git credentials
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: scm.branches,
+                        extensions: scm.extensions,
+                        userRemoteConfigs: [[
+                            credentialsId: GIT_CREDENTIALS_ID,
+                            url: scm.userRemoteConfigs[0].url
+                        ]]
+                    ])
                     
                     // Verify no lock files were checked out
                     sh '''
