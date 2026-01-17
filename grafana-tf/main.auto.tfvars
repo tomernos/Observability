@@ -1,4 +1,4 @@
-grafana_url      = "http://afbad2cb906aa4492aeadebd0196cc3f-59418386.eu-central-1.elb.amazonaws.com"
+grafana_url      = "http://ac4db9e95e19c48c9bb73fcd758629c0-217960061.eu-central-1.elb.amazonaws.com"
 grafana_username = "admin"
 grafana_password = "admin123"
 

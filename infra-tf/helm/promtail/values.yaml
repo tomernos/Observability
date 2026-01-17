@@ -4,6 +4,9 @@
 config:
   clients:
     - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+  snippets:
+    pipelineStages:
+      - cri: {}
 
 # DaemonSet configuration (runs on each node)
 daemonset:
@@ -16,10 +19,4 @@ resources:
   limits:
     cpu: 200m
     memory: 128Mi
-
-# Collect all pod logs
-config:
-  snippets:
-    pipelineStages:
-      - cri: {}
 

@@ -1,17 +1,16 @@
 {
-  "dashboard": {
-    "title": "ChatApp - Application Observability (L6 Staff)",
-    "uid": "chatapp-app-obs",
-    "tags": ["chatapp", "application", "sli", "slo"],
-    "timezone": "browser",
-    "schemaVersion": 38,
-    "version": 1,
-    "refresh": "30s",
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
-    "panels": [
+  "title": "ChatApp - Application Observability (L6 Staff)",
+  "uid": "chatapp-app-obs",
+  "tags": ["chatapp", "application", "sli", "slo"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
       {
         "id": 1,
         "title": "🎯 SLI: Request Success Rate (Target: 99.9%)",
@@ -280,7 +279,5 @@
         }
       }
     ]
-  },
-  "overwrite": true
 }
 

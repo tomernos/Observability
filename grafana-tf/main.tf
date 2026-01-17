@@ -48,10 +48,10 @@ resource "grafana_data_source" "jaeger" {
 }
 
 # =========================================
-# Staff-Level Application Dashboard
+# Observability Triad Dashboard (Metrics + Traces + Logs)
 # =========================================
-resource "grafana_dashboard" "chatapp_application" {
-  config_json = file("${path.module}/dashboards/chatapp-application-dashboard.json")
+resource "grafana_dashboard" "chatapp_observability_triad" {
+  config_json = file("${path.module}/dashboards/chatapp-observability-triad.json")
   folder      = grafana_folder.app_folders["chatapp"].id
   
   overwrite = true
