@@ -317,13 +317,13 @@ pipeline {
             }
         }
 
-        stage('Terraform Apply - Infrastructure') {
+        stage('Terraform Apply') {
             when {
                 expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
             }
             steps {
                 script {
-                    logMessage('Applying Terraform infrastructure (EKS + Helm)', '🚀')
+                    logMessage('Applying Terraform changes', '🚀')
                     
                     withCredentials([usernamePassword(
                         credentialsId: AWS_CREDENTIALS_ID,
@@ -336,76 +336,13 @@ pipeline {
                                 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
                                 export AWS_DEFAULT_REGION=eu-central-1
                                 
-                                echo "🚀 Phase 1: Applying infrastructure (EKS cluster + Helm releases)..."
-                                echo "This excludes Karpenter null_resources which require kubectl"
-                                terraform apply -auto-approve \\
-                                    -target=module.vpc \\
-                                    -target=module.eks \\
-                                    -target=module.karpenter \\
-                                    -target=helm_release.this \\
-                                    -target=local_file.karpenter_ec2nodeclass \\
-                                    -target=local_file.karpenter_nodepool
-                                echo "✅ Infrastructure apply completed"
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Configure kubectl') {
-            when {
-                expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
-            }
-            steps {
-                script {
-                    logMessage('Configuring kubectl for EKS cluster', '⚙️')
-                    
-                    withCredentials([usernamePassword(
-                        credentialsId: AWS_CREDENTIALS_ID,
-                        usernameVariable: 'AWS_ACCESS_KEY_ID',
-                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                    )]) {
-                        sh '''
-                            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-                            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-                            export AWS_DEFAULT_REGION=eu-central-1
-                            
-                            echo "⚙️ Configuring kubectl for EKS cluster: ${CLUSTER_NAME}"
-                            aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_REGION}
-                            
-                            echo "🔍 Verifying cluster access..."
-                            kubectl cluster-info
-                            kubectl get nodes || echo "⚠️  Waiting for nodes to join..."
-                            echo "✅ kubectl configured successfully"
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Terraform Apply - Karpenter') {
-            when {
-                expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
-            }
-            steps {
-                script {
-                    logMessage('Applying Karpenter resources', '🚀')
-                    
-                    withCredentials([usernamePassword(
-                        credentialsId: AWS_CREDENTIALS_ID,
-                        usernameVariable: 'AWS_ACCESS_KEY_ID',
-                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                    )]) {
-                        dir('infra-tf') {
-                            sh '''
-                                export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-                                export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-                                export AWS_DEFAULT_REGION=eu-central-1
+                                # Configure kubectl for EKS (required for Karpenter null_resource)
+                                echo "⚙️ Configuring kubectl for cluster access..."
+                                aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_REGION} 2>/dev/null || echo "⚠️  Cluster not yet available (will be created during apply)"
                                 
-                                echo "🚀 Phase 2: Applying Karpenter resources (requires kubectl)..."
+                                echo "🚀 Applying Terraform changes..."
                                 terraform apply -auto-approve tfplan
-                                echo "✅ All Terraform resources applied successfully"
+                                echo "✅ Terraform apply completed"
                             '''
                         }
                     }
