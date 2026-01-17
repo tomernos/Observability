@@ -83,15 +83,22 @@ resource "null_resource" "apply_karpenter_ec2nodeclass" {
     manifest_sha      = sha256(local_file.karpenter_ec2nodeclass.content)
     filename          = local_file.karpenter_ec2nodeclass.filename
     node_class_name   = var.karpenter.node_class.name
+    cluster_name      = local.cluster_name
   }
 
   provisioner "local-exec" {
-    command = "kubectl apply -f ${self.triggers.filename}"
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region}
+      kubectl apply -f ${self.triggers.filename}
+    EOT
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "kubectl delete ec2nodeclass ${self.triggers.node_class_name} --ignore-not-found=true || true"
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${var.aws_region} || true
+      kubectl delete ec2nodeclass ${self.triggers.node_class_name} --ignore-not-found=true || true
+    EOT
   }
 
   depends_on = [
@@ -106,15 +113,22 @@ resource "null_resource" "apply_karpenter_nodepool" {
     manifest_sha    = sha256(local_file.karpenter_nodepool.content)
     filename        = local_file.karpenter_nodepool.filename
     node_pool_name  = var.karpenter.node_pool.name
+    cluster_name    = local.cluster_name
   }
 
   provisioner "local-exec" {
-    command = "kubectl apply -f ${self.triggers.filename}"
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region}
+      kubectl apply -f ${self.triggers.filename}
+    EOT
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "kubectl delete nodepool ${self.triggers.node_pool_name} --ignore-not-found=true || true"
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${var.aws_region} || true
+      kubectl delete nodepool ${self.triggers.node_pool_name} --ignore-not-found=true || true
+    EOT
   }
 
   depends_on = [
