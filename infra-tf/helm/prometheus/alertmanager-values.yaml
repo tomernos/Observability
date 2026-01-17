@@ -74,6 +74,24 @@ alertmanager:
           receiver: 'slack-prod'
           continue: true
     
+    # Inhibition rules - Reduce alert noise
+    # If source alert is firing, suppress target alerts
+    inhibit_rules:
+      # If service is DOWN, suppress latency and error rate alerts
+      - source_match:
+          severity: critical
+          alert_type: availability
+        target_match_re:
+          alert_type: (latency|error_rate)
+        equal: ['namespace', 'app']
+      
+      # If critical alert is firing, suppress warning alerts of same type
+      - source_match:
+          severity: critical
+        target_match:
+          severity: warning
+        equal: ['alertname', 'namespace', 'app']
+    
     # Receivers (where alerts go)
     receivers:
       # Default receiver (fallback)

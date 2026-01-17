@@ -30,7 +30,7 @@ spec:
         annotations:
           summary: "High error rate in {{ $labels.namespace }}"
           description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%) for {{ $labels.namespace }}"
-          runbook_url: "https://wiki.example.com/runbooks/high-error-rate"
+          runbook_url: "https://github.com/YOUR_ORG/Observability/blob/main/docs/runbooks/HIGH-ERROR-RATE.md"
 
       - alert: ChatappWarningErrorRate
         expr: |
@@ -65,7 +65,7 @@ spec:
         annotations:
           summary: "High latency in {{ $labels.namespace }}"
           description: "P95 latency is {{ $value }}s (threshold: 1.0s) for {{ $labels.namespace }}"
-          runbook_url: "https://wiki.example.com/runbooks/high-latency"
+          runbook_url: "https://github.com/YOUR_ORG/Observability/blob/main/docs/runbooks/HIGH-LATENCY.md"
 
       - alert: ChatappWarningLatency
         expr: |
@@ -94,7 +94,7 @@ spec:
         annotations:
           summary: "chatapp-backend is down in {{ $labels.namespace }}"
           description: "Service has been down for more than 2 minutes in {{ $labels.namespace }}"
-          runbook_url: "https://wiki.example.com/runbooks/service-down"
+          runbook_url: "https://github.com/YOUR_ORG/Observability/blob/main/docs/runbooks/SERVICE-DOWN.md"
 
       - alert: ChatappNoRequests
         expr: |

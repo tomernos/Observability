@@ -1,33 +1,206 @@
-# ArgoCD Configuration - Optimized for Karpenter autoscaling
+# ArgoCD Configuration - GitOps Deployment Platform
+# Installed via: helm install argocd argo/argo-cd --namespace argocd -f values.yaml
+
+# =========================================
+# Global Settings
+# =========================================
 global:
-  domain: argocd.tomernos.xyz
+  domain: argocd.example.com  # Update with your domain
 
-syncSecret:
-  enabled: true
-
-certificate:
-  enabled: false
-
-configs:
-  params:
-    "server.insecure": true
-
-controller:
-  replicas: 1
-
-repoServer:
-  replicas: 1
-
+# =========================================
+# Server Configuration
+# =========================================
 server:
-  replicas: 1
-  service:
-    type: ClusterIP
+  # Ingress configuration (optional - use port-forward for now)
+  ingress:
+    enabled: false  # Set to true if you have ingress controller
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    hosts:
+      - argocd.example.com
 
-applicationSet:
-  enabled: true
-  replicas: 1
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
+  # Enable metrics for Prometheus
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      additionalLabels:
+        release: monitoring
 
+# =========================================
+# Repository Server Configuration
+# =========================================
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Enable metrics for Prometheus
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      additionalLabels:
+        release: monitoring
+
+# =========================================
+# Application Controller Configuration
+# =========================================
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # Enable metrics for Prometheus
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      additionalLabels:
+        release: monitoring
+
+# =========================================
+# Redis Configuration
+# =========================================
 redis:
-  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
+# =========================================
+# Git Repository Credentials
+# =========================================
+configs:
+  # Repository credentials (if private repo)
+  # Can also be added via UI or CLI after installation
+  repositories:
+    companygitops:
+      url: https://github.com/tomernos/CompanyGitOps.git
+      type: git
+      name: companygitops
+      # For private repos, add credentials:
+      # usernameSecret:
+      #   name: git-creds
+      #   key: username
+      # passwordSecret:
+      #   name: git-creds
+      #   key: password
+
+  # RBAC Configuration
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      # Admin users (full access)
+      g, admin, role:admin
+      
+      # Dev team (can sync dev apps)
+      p, role:dev-team, applications, get, chatapp-dev/*, allow
+      p, role:dev-team, applications, sync, chatapp-dev/*, allow
+      g, dev-user, role:dev-team
+      
+      # Ops team (can sync all environments)
+      p, role:ops-team, applications, *, */*, allow
+      g, ops-user, role:ops-team
+
+  # ArgoCD CM configuration
+  cm:
+    # Application sync settings
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    
+    # Status badge (optional)
+    statusbadge.enabled: true
+    
+    # Resource tracking method
+    application.resourceTrackingMethod: annotation
+
+# =========================================
+# Notifications (Slack integration)
+# =========================================
+notifications:
+  enabled: true
+  argocdUrl: https://argocd.example.com
+  
+  # Notification services (configure after installation)
+  # notifiers:
+  #   service.slack: |
+  #     token: $slack-token
+  
+  # Notification templates
+  templates:
+    template.app-deployed: |
+      message: |
+        ✅ Application {{.app.metadata.name}} deployed successfully
+        Environment: {{.app.spec.destination.namespace}}
+        Revision: {{.app.status.sync.revision}}
+    
+    template.app-health-degraded: |
+      message: |
+        ⚠️ Application {{.app.metadata.name}} health degraded
+        Environment: {{.app.spec.destination.namespace}}
+    
+    template.app-sync-failed: |
+      message: |
+        ❌ Application {{.app.metadata.name}} sync failed
+        Environment: {{.app.spec.destination.namespace}}
+        Error: {{.app.status.operationState.message}}
+
+  # Triggers (when to send notifications)
+  # triggers:
+  #   trigger.on-deployed: |
+  #     - when: app.status.sync.status == 'Synced' && app.status.health.status == 'Healthy'
+  #       send: [app-deployed]
+  #   trigger.on-health-degraded: |
+  #     - when: app.status.health.status == 'Degraded'
+  #       send: [app-health-degraded]
+  #   trigger.on-sync-failed: |
+  #     - when: app.status.sync.status == 'Failed'
+  #       send: [app-sync-failed]
+
+# =========================================
+# High Availability (Optional - for production)
+# =========================================
+# redis-ha:
+#   enabled: true
+
+# controller:
+#   replicas: 2
+
+# server:
+#   replicas: 2
+#   autoscaling:
+#     enabled: true
+#     minReplicas: 2
+#     maxReplicas: 5
+
+# repoServer:
+#   replicas: 2
+#   autoscaling:
+#     enabled: true
+#     minReplicas: 2
+#     maxReplicas: 5

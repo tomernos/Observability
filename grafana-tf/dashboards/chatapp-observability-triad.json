@@ -1,0 +1,465 @@
+{
+  "title": "ChatApp - Full Observability Triad (Metrics + Traces + Logs)",
+  "uid": "chatapp-obs-triad",
+  "tags": ["chatapp", "observability", "sli", "correlation"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "📊 METRICS: Request Rate & Success Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{namespace=\"chatapp-dev\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "Total Requests/sec"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{namespace=\"chatapp-dev\", status=~\"2..\"}[5m]))",
+          "refId": "B",
+          "legendFormat": "Success (2xx)"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{namespace=\"chatapp-dev\", status=~\"5..\"}[5m]))",
+          "refId": "C",
+          "legendFormat": "Errors (5xx)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Errors (5xx)"},
+            "properties": [
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}
+            ]
+          }
+        ]
+      },
+      "description": "Click on a spike to see related traces and logs below"
+    },
+    {
+      "id": 2,
+      "title": "🔍 TRACES: Request Activity → Click [Open Jaeger] to see detailed traces",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{job=\"chatapp-backend\"}[1m])) by (method, status_code)",
+          "legendFormat": "{{method}} - Status {{status_code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "drawStyle": "line",
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "links": [
+            {
+              "title": "🔍 Open Jaeger UI to see traces",
+              "url": "http://localhost:16686/search?service=chatapp-backend&lookback=1h&limit=20"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byRegexp", "options": ".*500.*"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "red"}
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": ".*200.*"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "green"}
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["lastNotNull", "sum"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "📊 Request rate by method and status code\n\n🔗 Click legend item → Data links → Open Jaeger UI\n\n⚙️ Port-forward: kubectl port-forward -n default svc/jaeger-query 16686:16686"
+    },
+    {
+      "id": 11,
+      "title": "⏱️ TRACES: Request Latency (P50, P95, P99)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"chatapp-backend\"}[1m])) by (le))",
+          "legendFormat": "P50 (median)"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"chatapp-backend\"}[1m])) by (le))",
+          "legendFormat": "P95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"chatapp-backend\"}[1m])) by (le))",
+          "legendFormat": "P99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "drawStyle": "line"
+          },
+          "links": [
+            {
+              "title": "🔍 See slow traces in Jaeger",
+              "url": "http://localhost:16686/search?service=chatapp-backend&lookback=1h&limit=20&maxDuration&minDuration=100ms"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "P99"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "red"}
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "P95"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "orange"}
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "P50 (median)"},
+            "properties": [
+              {
+                "id": "color",
+                "value": {"mode": "fixed", "fixedColor": "green"}
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["last", "mean", "max"]
+        }
+      },
+      "description": "⏱️ Request latency percentiles\n\n🎯 When you see spikes here, click → Data links → See slow traces in Jaeger to find which requests were slow"
+    },
+    {
+      "id": 3,
+      "title": "📝 LOGS: Application Logs (filter by trace_id for correlation)",
+      "type": "logs",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 16},
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{namespace=\"chatapp-dev\", container=\"backend\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "description": "Real-time logs from Loki. Filter by trace_id to correlate with traces."
+    },
+    {
+      "id": 4,
+      "title": "🎯 SLI: Service Availability (99.99% target)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 28},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg(up{job=\"chatapp-backend\", namespace=\"chatapp-dev\"}) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 99, "color": "yellow"},
+              {"value": 99.99, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "title": "🎯 SLI: Success Rate (99.9% target)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 28},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{namespace=\"chatapp-dev\", status=~\"2..\"}[5m])) / sum(rate(http_requests_total{namespace=\"chatapp-dev\"}[5m])) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 95, "color": "yellow"},
+              {"value": 99.9, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "title": "🎯 SLI: P95 Latency (<200ms target)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 28},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"chatapp-dev\"}[5m])) by (le)) * 1000",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "green"},
+              {"value": 200, "color": "yellow"},
+              {"value": 500, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 7,
+      "title": "💰 Error Budget Remaining (monthly)",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 28},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(1 - (1 - sum(rate(http_requests_total{namespace=\"chatapp-dev\", status=~\"2..\"}[30d])) / sum(rate(http_requests_total{namespace=\"chatapp-dev\"}[30d]))) / (1 - 0.999)) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 30, "color": "yellow"},
+              {"value": 70, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      },
+      "description": "Percentage of error budget remaining this month. 0% = no budget left, freeze deployments!"
+    },
+    {
+      "id": 8,
+      "title": "📈 Request Rate by Endpoint",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{namespace=\"chatapp-dev\"}[5m])) by (endpoint)",
+          "refId": "A",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "⏱️ Latency by Endpoint (P95)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"chatapp-dev\"}[5m])) by (le, endpoint)) * 1000",
+          "refId": "A",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "💾 Memory Usage",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 38},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{namespace=\"chatapp-dev\", job=\"chatapp-backend\"} / 1024 / 1024",
+          "refId": "A",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "⚡ CPU Usage",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 38},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{namespace=\"chatapp-dev\", job=\"chatapp-backend\"}[5m]) * 100",
+          "refId": "A",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20
+          }
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": [
+      {
+        "datasource": "Loki",
+        "enable": true,
+        "expr": "{namespace=\"chatapp-dev\"} |= \"ERROR\"",
+        "iconColor": "red",
+        "name": "Error Logs",
+        "tagKeys": "level",
+        "textFormat": "{{message}}",
+        "titleFormat": "Error"
+      }
+    ]
+  }
+}
+
