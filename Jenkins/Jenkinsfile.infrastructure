@@ -110,6 +110,18 @@ pipeline {
                             echo "✅ AWS CLI already installed"
                         fi
                         
+                        # Install kubectl
+                        if ! command -v kubectl &> /dev/null; then
+                            echo "📦 Installing kubectl..."
+                            KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+                            curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            rm kubectl
+                            echo "✅ kubectl installed"
+                        else
+                            echo "✅ kubectl already installed"
+                        fi
+                        
                         # Cleanup
                         apt-get clean
                         rm -rf /var/lib/apt/lists/*
@@ -118,6 +130,7 @@ pipeline {
                         echo "🔍 Verifying installed tools..."
                         terraform version
                         aws --version
+                        kubectl version --client
                         echo "✅ All tools installed successfully"
                     '''
                 }
@@ -299,6 +312,37 @@ pipeline {
                                 echo "✅ Terraform plan completed"
                             '''
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Configure kubectl') {
+            when {
+                expression { params.TERRAFORM_ACTION == 'plan-and-apply' }
+            }
+            steps {
+                script {
+                    logMessage('Configuring kubectl for EKS cluster', '⚙️')
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: AWS_CREDENTIALS_ID,
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )]) {
+                        sh '''
+                            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                            export AWS_DEFAULT_REGION=eu-central-1
+                            
+                            echo "⚙️ Configuring kubectl for EKS cluster: ${CLUSTER_NAME}"
+                            aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_REGION}
+                            
+                            echo "🔍 Verifying cluster access..."
+                            kubectl cluster-info
+                            kubectl get nodes || echo "⚠️  No nodes yet (expected for new cluster)"
+                            echo "✅ kubectl configured successfully"
+                        '''
                     }
                 }
             }
