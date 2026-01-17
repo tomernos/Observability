@@ -336,13 +336,14 @@ pipeline {
                                 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
                                 export AWS_DEFAULT_REGION=eu-central-1
                                 
-                                # Configure kubectl for EKS (required for Karpenter null_resource)
-                                echo "⚙️ Configuring kubectl for cluster access..."
-                                aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_REGION} 2>/dev/null || echo "⚠️  Cluster not yet available (will be created during apply)"
-                                
+  
                                 echo "🚀 Applying Terraform changes..."
                                 terraform apply -auto-approve tfplan
                                 echo "✅ Terraform apply completed"
+
+                                # Configure kubectl for EKS (required for Karpenter null_resource)
+                                echo "⚙️ Configuring kubectl for cluster access..."
+                                aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_REGION} 2>/dev/null || echo "⚠️  Cluster not yet available (will be created during apply)" 
                             '''
                         }
                     }
