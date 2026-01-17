@@ -32,7 +32,7 @@ resource "grafana_data_source" "loki" {
 resource "grafana_data_source" "jaeger" {
   type       = "jaeger"
   name       = "Jaeger"
-  url        = "http://jaeger.default.svc.cluster.local:16686"
+  url        = "http://jaeger-query.default.svc.cluster.local:16686"
   access_mode = "proxy"
   
   json_data_encoded = jsonencode({
@@ -45,6 +45,16 @@ resource "grafana_data_source" "jaeger" {
       tags          = [{ key = "service.name", value = "service" }]
     }
   })
+}
+
+# =========================================
+# Staff-Level Application Dashboard
+# =========================================
+resource "grafana_dashboard" "chatapp_application" {
+  config_json = file("${path.module}/dashboards/chatapp-application-dashboard.json")
+  folder      = grafana_folder.app_folders["chatapp"].id
+  
+  overwrite = true
 }
 
 # Create folder per application
