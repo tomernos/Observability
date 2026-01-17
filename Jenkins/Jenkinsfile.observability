@@ -1,0 +1,143 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'eu-central-1'
+        CLUSTER_NAME = 'tnt-eu-chatapp-dev-eks'
+        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')  // Store in Jenkins credentials
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Configure Kubeconfig') {
+            steps {
+                script {
+                    sh """
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
+                        kubectl cluster-info
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy Monitoring Stack') {
+            steps {
+                dir('Observability/infra-tf') {
+                    script {
+                        sh """
+                            # Add helm repo
+                            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
+                            helm repo update
+                            
+                            # Deploy monitoring stack
+                            helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \\
+                              --namespace monitoring \\
+                              --create-namespace \\
+                              -f helm/prometheus/values.yaml \\
+                              -f helm/prometheus/alertmanager-values.yaml \\
+                              --set alertmanager.config.global.slack_api_url='${SLACK_WEBHOOK_URL}' \\
+                              --wait \\
+                              --timeout 10m
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Wait for Services') {
+            steps {
+                script {
+                    sh """
+                        echo "Waiting for Prometheus..."
+                        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=5m || true
+                        
+                        echo "Waiting for Grafana..."
+                        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=5m || true
+                        
+                        echo "Waiting for Alertmanager..."
+                        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n monitoring --timeout=5m || true
+                    """
+                }
+            }
+        }
+        
+        stage('Get Grafana URL') {
+            steps {
+                script {
+                    sh """
+                        # Wait for LoadBalancer
+                        echo "Waiting for Grafana LoadBalancer..."
+                        for i in {1..30}; do
+                            GRAFANA_HOST=\$(kubectl get svc -n monitoring grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                            if [ -n "\${GRAFANA_HOST}" ] && [ "\${GRAFANA_HOST}" != "null" ]; then
+                                echo "GRAFANA_URL=http://\${GRAFANA_HOST}" > grafana_url.txt
+                                break
+                            fi
+                            sleep 10
+                        done
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy Grafana Dashboards') {
+            steps {
+                dir('Observability/grafana-tf') {
+                    script {
+                        sh """
+                            # Update grafana_url if LoadBalancer is ready
+                            if [ -f ../infra-tf/grafana_url.txt ]; then
+                                GRAFANA_URL=\$(cat ../infra-tf/grafana_url.txt | cut -d'=' -f2)
+                                sed -i "s|grafana_url.*=.*|grafana_url      = \"\${GRAFANA_URL}\"|" main.auto.tfvars || true
+                            fi
+                            
+                            # Initialize and apply
+                            terraform init
+                            terraform apply -auto-approve
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    sh """
+                        echo "=== Deployment Summary ==="
+                        echo ""
+                        echo "Prometheus:"
+                        kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus
+                        echo ""
+                        echo "Grafana:"
+                        kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana
+                        echo ""
+                        echo "Alertmanager:"
+                        kubectl get pods -n monitoring -l app.kubernetes.io/name=alertmanager
+                        echo ""
+                        echo "ServiceMonitors:"
+                        kubectl get servicemonitor -A
+                        echo ""
+                        echo "PrometheusRules:"
+                        kubectl get prometheusrule -A
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ Observability stack deployed successfully"
+        }
+        failure {
+            echo "❌ Observability stack deployment failed"
+        }
+    }
+}
+

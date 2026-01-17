@@ -113,3 +113,10 @@ output "ecr_repositories" {
   }
   description = "ECR repository URLs and ARNs - Use these in CI/CD pipelines"
 }
+
+# Debug output for Helm values (temporary - remove after verification)
+output "prometheus_helm_values_files" {
+  value = try(local.helm_values["prometheus"], [])
+  description = "Debug: Prometheus Helm values files being loaded"
+  sensitive = false
+}

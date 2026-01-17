@@ -1,0 +1,146 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: chatapp-alerts
+  namespace: monitoring
+  labels:
+    app: chatapp
+    managed-by: terraform
+spec:
+  groups:
+  - name: chatapp_alerts
+    interval: 30s
+    rules:
+      # =========================================
+      # High Error Rate Alerts
+      # =========================================
+      - alert: ChatappHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{namespace=~"chatapp-(dev|staging|prod)", status_code=~"5.."}[5m])) by (namespace)
+            /
+            sum(rate(http_requests_total{namespace=~"chatapp-(dev|staging|prod)"}[5m])) by (namespace)
+            * 100
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          app: chatapp
+          alert_type: error_rate
+        annotations:
+          summary: "High error rate in {{ $labels.namespace }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%) for {{ $labels.namespace }}"
+          runbook_url: "https://wiki.example.com/runbooks/high-error-rate"
+
+      - alert: ChatappWarningErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{namespace=~"chatapp-(dev|staging|prod)", status_code=~"5.."}[5m])) by (namespace)
+            /
+            sum(rate(http_requests_total{namespace=~"chatapp-(dev|staging|prod)"}[5m])) by (namespace)
+            * 100
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          app: chatapp
+          alert_type: error_rate
+        annotations:
+          summary: "Elevated error rate in {{ $labels.namespace }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%) for {{ $labels.namespace }}"
+
+      # =========================================
+      # High Latency Alerts
+      # =========================================
+      - alert: ChatappHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{namespace=~"chatapp-(dev|staging|prod)"}[5m])) by (le, namespace)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          app: chatapp
+          alert_type: latency
+        annotations:
+          summary: "High latency in {{ $labels.namespace }}"
+          description: "P95 latency is {{ $value }}s (threshold: 1.0s) for {{ $labels.namespace }}"
+          runbook_url: "https://wiki.example.com/runbooks/high-latency"
+
+      - alert: ChatappWarningLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{namespace=~"chatapp-(dev|staging|prod)"}[5m])) by (le, namespace)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          app: chatapp
+          alert_type: latency
+        annotations:
+          summary: "Elevated latency in {{ $labels.namespace }}"
+          description: "P95 latency is {{ $value }}s (threshold: 0.5s) for {{ $labels.namespace }}"
+
+      # =========================================
+      # Service Availability Alerts
+      # =========================================
+      - alert: ChatappServiceDown
+        expr: up{job=~"chatapp-backend.*", namespace=~"chatapp-(dev|staging|prod)"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          app: chatapp
+          alert_type: availability
+        annotations:
+          summary: "chatapp-backend is down in {{ $labels.namespace }}"
+          description: "Service has been down for more than 2 minutes in {{ $labels.namespace }}"
+          runbook_url: "https://wiki.example.com/runbooks/service-down"
+
+      - alert: ChatappNoRequests
+        expr: |
+          sum(rate(http_requests_total{namespace=~"chatapp-(dev|staging|prod)"}[5m])) by (namespace) == 0
+        for: 10m
+        labels:
+          severity: warning
+          app: chatapp
+          alert_type: availability
+        annotations:
+          summary: "No requests in {{ $labels.namespace }}"
+          description: "No HTTP requests received in the last 10 minutes for {{ $labels.namespace }}"
+
+      # =========================================
+      # Resource Alerts (if metrics available)
+      # =========================================
+      - alert: ChatappHighMemoryUsage
+        expr: |
+          (
+            container_memory_usage_bytes{namespace=~"chatapp-(dev|staging|prod)", container="backend"}
+            /
+            container_spec_memory_limit_bytes{namespace=~"chatapp-(dev|staging|prod)", container="backend"}
+            * 100
+          ) > 90
+        for: 5m
+        labels:
+          severity: warning
+          app: chatapp
+          alert_type: resource
+        annotations:
+          summary: "High memory usage in {{ $labels.namespace }}"
+          description: "Memory usage is {{ $value }}% for backend in {{ $labels.namespace }}"
+
+      - alert: ChatappHighCPUUsage
+        expr: |
+          (
+            rate(container_cpu_usage_seconds_total{namespace=~"chatapp-(dev|staging|prod)", container="backend"}[5m])
+            /
+            container_spec_cpu_quota{namespace=~"chatapp-(dev|staging|prod)", container="backend"} * 100
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+          app: chatapp
+          alert_type: resource
+        annotations:
+          summary: "High CPU usage in {{ $labels.namespace }}"
+          description: "CPU usage is {{ $value }}% for backend in {{ $labels.namespace }}"
+

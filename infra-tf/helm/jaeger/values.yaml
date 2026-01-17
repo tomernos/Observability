@@ -1,0 +1,53 @@
+# Jaeger Configuration - TIER6 Modular Pattern
+# Deployed via Terraform Helm provider
+# Namespace: monitoring (set in main.auto.tfvars)
+
+# Force namespace override (Jaeger chart v4.x issue)
+namespaceOverride: monitoring
+
+# Disable operator - use direct deployment instead
+operator:
+  enabled: false
+
+# Jaeger instance configuration (direct deployment)
+allInOne:
+  enabled: true
+  
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Storage (in-memory for dev)
+  options:
+    memory:
+      max-traces: 50000
+  
+  # Service configuration
+  #service:
+    #type: ClusterIP
+    # For LoadBalancer access (optional):
+    # type: LoadBalancer
+
+# Query service (for UI and API)
+query:
+  enabled: true
+  service:
+    type: ClusterIP
+    # For external access:
+    # type: LoadBalancer
+
+# Collector configuration (receives traces from OTEL Collector)
+collector:
+  enabled: true
+  service:
+    type: ClusterIP
+
+# Storage (for production, use Elasticsearch or Cassandra)
+# For dev, using in-memory storage (allInOne mode)
+storage:
+  type: memory

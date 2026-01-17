@@ -1,86 +1,123 @@
-# Grafana Dashboards as Code
+# Grafana Dashboards - TIER6 Multi-App System
 
-This Terraform module manages Grafana dashboards for the ChatApp backend monitoring stack.
+## 🎯 Developer-Friendly Dashboard Creation
 
-## What It Does
+**Pattern**: Simple tfvars → Auto-generated dashboards  
+**Benefit**: Add dashboard in 5 lines, not 50
 
-- Creates a custom Grafana dashboard with **RED metrics** (Rate, Errors, Duration)
-- Organizes dashboards in a dedicated "ChatApp" folder
-- Manages dashboards as code for version control and GitOps
+## 📝 How to Add Dashboard
 
-## Dashboard Panels
+### Simple Structure (No Grid Math!)
 
-The `ChatApp Backend - RED Metrics` dashboard includes:
+```hcl
+apps = {
+  myapp = {
+    name            = "myapp"
+    display_name    = "My Application"
+    environments    = ["dev", "prod"]
+    namespace_prefix = "myapp"
+    
+    panels = [
+      {
+        title  = "Request Rate"
+        type   = "timeseries"
+        queries = [
+          {
+            expr   = "sum(rate(http_requests_total{namespace=\"__NAMESPACE__\"}[5m]))"
+            legend = "Total"
+          }
+        ]
+      },
+      {
+        title  = "Error Rate"
+        type   = "gauge"
+        unit   = "percent"
+        queries = [
+          {
+            expr   = "sum(rate(http_requests_total{namespace=\"__NAMESPACE__\", status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total{namespace=\"__NAMESPACE__\"}[5m])) * 100"
+            legend = "Errors"
+          }
+        ]
+        alert_thresholds = [
+          { level = "warning", value = 1 },
+          { level = "critical", value = 5 }
+        ]
+      }
+    ]
+  }
+}
+```
 
-1. **Request Rate** - Requests per second by endpoint
-2. **Total Request Rate** - Overall throughput (gauge)
-3. **Error Rate** - 4xx/5xx error percentage by status code
-4. **Overall Error Rate** - Total error percentage (gauge)
-5. **Response Time** - p50, p95, p99 latency by endpoint
-6. **P95 Latency** - 95th percentile response time (gauge)
-7. **Requests In Progress** - Current load by endpoint
+## ✨ Auto-Features
 
-## Prerequisites
+### Grid Positions (Auto-Calculated)
+- **Stat panels**: 6x6 grid, 4 per row
+- **Timeseries/Gauge**: 12x8, 2 per row
+- **No manual x/y/w/h needed!**
 
-- Grafana accessible at LoadBalancer URL or via port-forward
-- Prometheus datasource configured in Grafana
-- Backend pods exposing `/metrics` endpoint with:
-  - `http_requests_total` (Counter)
-  - `http_request_duration_seconds` (Histogram)
-  - `http_requests_in_progress` (Gauge)
+### RefIds (Auto-Generated)
+- First query: `A`
+- Second query: `B`
+- Third query: `C`
+- And so on...
 
-## Usage
+### Namespace Substitution
+- Use `__NAMESPACE__` in expressions
+- Auto-replaced per environment:
+  - `myapp-dev` → dev dashboard
+  - `myapp-prod` → prod dashboard
 
-### 1. Initialize Terraform
+## 📊 Panel Types
+
+### Timeseries
+```hcl
+{
+  title  = "My Metric"
+  type   = "timeseries"
+  unit   = "reqps"  # optional
+  queries = [...]
+}
+```
+
+### Gauge
+```hcl
+{
+  title  = "Error Rate"
+  type   = "gauge"
+  unit   = "percent"
+  queries = [...]
+  alert_thresholds = [
+    { level = "warning", value = 1 },
+    { level = "critical", value = 5 }
+  ]
+}
+```
+
+### Stat
+```hcl
+{
+  title  = "Total Requests"
+  type   = "stat"
+  queries = [...]
+}
+```
+
+## 🚀 Usage
 
 ```bash
 cd Observability/grafana-tf
 terraform init
-```
-
-### 2. Plan the deployment
-
-```bash
 terraform plan
-```
-
-### 3. Apply to create dashboard
-
-```bash
 terraform apply
 ```
 
-### 4. Access the dashboard
+## 🎯 Key Benefits
 
-Open the URL from outputs:
-```bash
-terraform output dashboard_url
-```
+1. **Simple**: Just title, type, queries
+2. **Auto**: Grid positions, refIds calculated
+3. **Clean**: No verbose configs
+4. **Reusable**: Same structure for all apps
 
-Or manually go to: `http://<grafana-url>/d/chatapp-backend`
+---
 
-## Configuration
-
-Edit `variables.tf` to customize:
-
-- `grafana_url` - Grafana LoadBalancer or localhost URL
-- `grafana_username` - Admin username (default: admin)
-- `grafana_password` - Admin password (default: admin123)
-- `prometheus_datasource_uid` - Prometheus datasource UID (default: prometheus)
-
-## Dashboard Customization
-
-To modify the dashboard:
-
-1. Edit `dashboards/chatapp-backend.json`
-2. Run `terraform apply` to update in Grafana
-3. Commit changes to Git for version control
-
-**Tip**: You can also export dashboards from Grafana UI (Share → Export → Save to file) and replace the JSON.
-
-## Interview Talking Points
-
-- **GitOps for Dashboards**: Dashboards stored in version control, deployed via Terraform
-- **RED Metrics**: Industry-standard observability pattern (Rate, Errors, Duration)
-- **Infrastructure as Code**: Grafana configuration managed declaratively
-- **Separation of Concerns**: Dedicated Terraform module for monitoring configuration
+**TIER6 Pattern**: Developer-friendly, auto-calculated, minimal config.

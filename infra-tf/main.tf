@@ -150,70 +150,44 @@ resource "kubernetes_namespace" "this" {
   }
 }
 
-# PHASE 1: Install Karpenter FIRST (it provisions nodes for other workloads)
-# resource "helm_release" "karpenter" {
-#   name             = "karpenter"
-#   repository       = "oci://public.ecr.aws/karpenter"
-#   repository_username = data.aws_ecrpublic_authorization_token.token.user_name
-#   repository_password = data.aws_ecrpublic_authorization_token.token.password
-#   chart            = "karpenter"
-#   version          = var.karpenter_version
-#   create_namespace = false
-#   namespace        = "kube-system"
-#   wait             = true
-#   timeout          = 600  # 10 minutes for Karpenter to be ready
-
-#   values = [
-#     templatefile("${path.module}/helm/karpenter/values.yaml.tpl", {
-#       cluster_name      = module.eks.cluster_name
-#       cluster_endpoint  = module.eks.cluster_endpoint
-#       interruption_queue = module.karpenter.queue_name
-#     })
-#   ]
-
-#   depends_on = [
-#     module.eks,
-#     module.karpenter
-#   ]
-
-#   lifecycle {
-#     ignore_changes = [
-#       repository_password,
-#       metadata[0].app_version,
-#     ]
-#   }
-# }
-
-# PHASE 1.5: Apply Karpenter NodePool & EC2NodeClass using kubectl provider
-# kubectl_manifest doesn't validate during plan - perfect for new clusters!
-# resource "kubectl_manifest" "karpenter_ec2_node_class" {
-#   yaml_body = templatefile("${path.module}/examples/karpenter-ec2nodeclass.yaml.tpl", {
-#     cluster_name = module.eks.cluster_name
-#     node_role    = module.karpenter.node_iam_role_name
-#   })
-
-#   depends_on = [
-#     helm_release.this
-#   ]
-# }
-
-# resource "kubectl_manifest" "karpenter_node_pool" {
-#   yaml_body = file("${path.module}/examples/karpenter-nodepool.yaml.tpl")
-
-#   depends_on = [
-#     helm_release.this,
-#     kubectl_manifest.karpenter_ec2_node_class
-#   ]
-# }
-
-# Wait for Karpenter to process the NodePool and be ready to provision nodes
-# resource "time_sleep" "wait_for_nodepool" {
-#   create_duration = "30s"
-
-#   depends_on = [
-#     kubectl_manifest.karpenter_node_pool
-#   ]
-# }
+# =========================================
+# Karpenter Resources
+# =========================================
+# EC2NodeClass and NodePool are now managed in karpenter-resources.tf
+# This ensures proper dependency ordering:
+# 1. Karpenter Helm chart installs (via helm_release.this["karpenter"])
+# 2. EC2NodeClass is created (depends on Helm install)
+# 3. NodePool is created (depends on EC2NodeClass)
+# 4. Other workloads can depend on time_sleep.wait_for_nodepool_ready
+locals {
+  # Process helm values for each chart using for_each
+  helm_values = {
+    for chart_key in keys(var.helm) : chart_key => (
+      # Karpenter: Use template file with dynamic values
+      chart_key == "karpenter" ? [
+        templatefile("${path.module}/helm/${chart_key}/values.yaml.tpl", {
+          cluster_name       = module.eks.cluster_name
+          cluster_endpoint   = module.eks.cluster_endpoint
+          interruption_queue = module.karpenter.queue_name
+        })
+      ] :
+      # External DNS: Use template file with dynamic values
+      chart_key == "external-dns" ? [
+        templatefile("${path.module}/helm/${chart_key}/values.yaml.tpl", {
+          txt_owner_id = "external-dns-${random_id.external_dns.hex}"
+          role_arn     = aws_iam_role.external_dns.arn
+          aws_region   = var.aws_region
+          domain_name  = keys(var.route53_zones)[0]
+        })
+      ] :
+      # Default: Load all static YAML files if they exist
+      length(fileset("${path.module}/helm/${chart_key}", "*.yaml")) > 0 ? [
+        for file in fileset("${path.module}/helm/${chart_key}", "*.yaml") :
+        file("${path.module}/helm/${chart_key}/${file}")
+      ] : []
+    )
+  }
+}
 
 # PHASE 2: Install other Helm charts AFTER Karpenter NodePool is configured
 resource "helm_release" "this" {
@@ -230,32 +204,7 @@ resource "helm_release" "this" {
   timeout             = lookup(each.value, "timeout", 300)
   replace             = lookup(each.value, "replace", true)
 
-  # Values loading for different charts
-  values = (
-    each.key == "karpenter" ? [
-      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
-        cluster_name       = module.eks.cluster_name
-        cluster_endpoint   = module.eks.cluster_endpoint
-        interruption_queue = module.karpenter.queue_name
-      })
-      ] : each.key == "external-dns" ? [
-      templatefile("${path.module}/helm/${each.key}/values.yaml.tpl", {
-        txt_owner_id = "external-dns-${random_id.external_dns.hex}"
-        role_arn     = aws_iam_role.external_dns.arn
-        aws_region   = var.aws_region
-        domain_name  = keys(var.route53_zones)[0]
-      })
-      ] : length(fileset("${path.module}/helm/${each.key}", "*.yaml")) > 0 ? [
-      # Static values files for other charts
-      for file in fileset("${path.module}/helm/${each.key}", "*.yaml") :
-      file("${path.module}/helm/${each.key}/${file}")
-    ] : []
-  )
-
-  depends_on = [
-    module.eks,
-    module.karpenter
-  ]
+  values = local.helm_values[each.key]
 
   lifecycle {
     ignore_changes = [

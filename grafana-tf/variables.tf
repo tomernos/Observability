@@ -15,29 +15,28 @@ variable "grafana_password" {
   sensitive   = true
 }
 
-variable "dashboards" {
-  description = "Map of dashboards to create (simplified for developers)"
-  type = any
+variable "apps" {
+  description = "Application registry - dashboard definitions"
+  type = map(object({
+    name            = string
+    display_name    = string
+    environments    = list(string)
+    namespace_prefix = string
+    refresh         = optional(string, "10s")
+    time_from       = optional(string, "now-1h")
+    time_to         = optional(string, "now")
+    panels = list(object({
+      title  = string
+      type   = string
+      unit   = optional(string, "short")
+      queries = list(object({
+        expr   = string
+        legend = string
+      }))
+      alert_thresholds = optional(list(object({
+        level = string  # "warning" or "critical"
+        value = number
+      })), [])
+    }))
+  }))
 }
-  
-#   map(object({
-#     title     = string
-#     uid       = string
-#     tags      = list(string)
-#     refresh   = string
-#     namespace = string
-#     panels = list(object({
-#       title = string
-#       type  = string
-#       unit  = optional(string, "short")
-#       queries = list(object({
-#         expr   = string
-#         legend = string
-#       }))
-#       alert_thresholds = optional(list(object({
-#         level = string  # "warning" or "critical"
-#         value = number
-#       })), [])
-#     }))
-#   }))
-# }

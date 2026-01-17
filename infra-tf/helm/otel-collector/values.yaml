@@ -1,0 +1,53 @@
+# OpenTelemetry Collector Configuration - TIER6 Modular Pattern
+
+# Image configuration (required)
+image:
+  repository: otel/opentelemetry-collector
+  tag: "0.143.0"
+
+# Deployment mode
+mode: daemonset
+
+# Resource limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Service configuration (required for apps to connect)
+service:
+  enabled: true # By default, it's enabled on mode != daemonset. 
+  type: ClusterIP
+
+# Collector configuration - send traces to Jaeger
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  
+  processors:
+    batch:
+      timeout: 10s
+      send_batch_size: 1024
+    memory_limiter:
+      limit_mib: 512
+  
+  exporters:
+    otlp/jaeger:
+      endpoint: jaeger.default.svc.cluster.local:4317
+      tls:
+        insecure: true
+  
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/jaeger]

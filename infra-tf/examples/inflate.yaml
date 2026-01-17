@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: inflate
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: inflate
@@ -19,3 +19,7 @@ spec:
           resources:
             requests:
               cpu: 1
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 512Mi

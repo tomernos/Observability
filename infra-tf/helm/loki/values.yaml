@@ -1,0 +1,63 @@
+# Loki Configuration - Minimal for Dev
+# Single binary mode (all-in-one)
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  useTestSchema: true  # Use test schema for dev (no persistence)
+  
+  commonConfig:
+    replication_factor: 1
+    path_prefix: /var/loki
+  
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: false  # No persistence for dev
+  extraVolumes:
+    - name: storage
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: storage
+      mountPath: /var/loki
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Disable unnecessary components for single binary
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Disable caches (not needed for dev)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Keep only essential components
+gateway:
+  enabled: false
+
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+
+test:
+  enabled: false

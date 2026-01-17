@@ -1,0 +1,196 @@
+#helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \                     
+#  --namespace monitoring \
+#  -f ../infra-tf/helm/prometheus/values.yaml \
+#  -f ../infra-tf/helm/prometheus/alertmanager-values.yaml \
+#  --set alertmanager.config.global.slack_api_url="https://hooks.slack.com/services/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" \
+#  --wait \
+#  --timeout 10m
+
+# Alertmanager Configuration
+# Routes alerts to Slack/Email based on severity
+alertmanager:
+  enabled: true
+  
+  config:
+    global:
+      resolve_timeout: 5m
+      # Slack webhook URL (set via --set or environment variable)
+      slack_api_url: '${SLACK_WEBHOOK_URL}'
+    
+    # Email configuration (optional - uncomment if using email)
+    # smtp_smarthost: 'smtp.gmail.com:587'
+    # smtp_from: 'alerts@example.com'
+    # smtp_auth_username: 'alerts@example.com'
+    # smtp_auth_password: '${SMTP_PASSWORD}'
+    
+    # Route configuration
+    route:
+      # Group alerts by these labels
+      group_by: ['alertname', 'app', 'namespace', 'severity']
+      
+      # Wait time before sending first notification
+      group_wait: 10s
+      
+      # Wait time before sending notification about new alerts in same group
+      group_interval: 10s
+      
+      # Minimum time between two notifications about the same group
+      repeat_interval: 12h
+      
+      # Default receiver
+      receiver: 'slack-default'
+      
+      # Route rules (matched in order)
+      routes:
+        # Critical alerts → critical channel
+        - match:
+            severity: critical
+          receiver: 'slack-critical'
+          continue: false
+          repeat_interval: 1h  # More frequent for critical
+        
+        # Warning alerts → warning channel
+        - match:
+            severity: warning
+          receiver: 'slack-warning'
+          continue: false
+          repeat_interval: 6h
+        
+        # Dev environment → dev channel (optional)
+        - match:
+            namespace: chatapp-dev
+          receiver: 'slack-dev'
+          continue: true
+        
+        # Staging environment → staging channel (optional)
+        - match:
+            namespace: chatapp-staging
+          receiver: 'slack-staging'
+          continue: true
+        
+        # Prod environment → prod channel (optional)
+        - match:
+            namespace: chatapp-prod
+          receiver: 'slack-prod'
+          continue: true
+    
+    # Receivers (where alerts go)
+    receivers:
+      # Default receiver (fallback)
+      - name: 'slack-default'
+        slack_configs:
+          - channel: '#alerts'
+            title: '{{ .GroupLabels.alertname }}'
+            text: |
+              *Alert:* {{ .GroupLabels.alertname }}
+              *App:* {{ .GroupLabels.app }}
+              *Namespace:* {{ .GroupLabels.namespace }}
+              *Severity:* {{ .GroupLabels.severity }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
+            send_resolved: true
+      
+      # Critical alerts
+      - name: 'slack-critical'
+        slack_configs:
+          - channel: '#alerts-critical'
+            title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+            text: |
+              *🚨 CRITICAL ALERT 🚨*
+              
+              *Alert:* {{ .GroupLabels.alertname }}
+              *App:* {{ .GroupLabels.app }}
+              *Namespace:* {{ .GroupLabels.namespace }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            send_resolved: true
+            # Mention team for critical alerts
+            # username: 'Alertmanager'
+            # icon_emoji: ':rotating_light:'
+      
+      # Warning alerts
+      - name: 'slack-warning'
+        slack_configs:
+          - channel: '#alerts'
+            title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+            text: |
+              *⚠️ WARNING*
+              
+              *Alert:* {{ .GroupLabels.alertname }}
+              *App:* {{ .GroupLabels.app }}
+              *Namespace:* {{ .GroupLabels.namespace }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
+            send_resolved: true
+      
+      # Dev environment
+      - name: 'slack-dev'
+        slack_configs:
+          - channel: '#alerts-dev'
+            title: '🔧 DEV: {{ .GroupLabels.alertname }}'
+            text: |
+              *DEV Environment Alert*
+              
+              *Alert:* {{ .GroupLabels.alertname }}
+              *Severity:* {{ .GroupLabels.severity }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
+            send_resolved: true
+      
+      # Staging environment
+      - name: 'slack-staging'
+        slack_configs:
+          - channel: '#alerts-staging'
+            title: '🧪 STAGING: {{ .GroupLabels.alertname }}'
+            text: |
+              *STAGING Environment Alert*
+              
+              *Alert:* {{ .GroupLabels.alertname }}
+              *Severity:* {{ .GroupLabels.severity }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
+            send_resolved: true
+      
+      # Prod environment
+      - name: 'slack-prod'
+        slack_configs:
+          - channel: '#alerts-prod'
+            title: '🚀 PROD: {{ .GroupLabels.alertname }}'
+            text: |
+              *PRODUCTION Environment Alert*
+              
+              *Alert:* {{ .GroupLabels.alertname }}
+              *Severity:* {{ .GroupLabels.severity }}
+              
+              {{ range .Alerts }}
+              *Description:* {{ .Annotations.description }}
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            send_resolved: true
+      
+      # Email receiver (optional - uncomment if using email)
+      # - name: 'email-critical'
+      #   email_configs:
+      #     - to: 'oncall@example.com'
+      #       from: 'alerts@example.com'
+      #       headers:
+      #         Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+      #       html: |
+      #         <h2>Critical Alert</h2>
+      #         <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+      #         <p><strong>Namespace:</strong> {{ .GroupLabels.namespace }}</p>
+      #         {{ range .Alerts }}
+      #         <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+      #         {{ end }}
+

@@ -2,23 +2,70 @@ project     = "chatapp"
 environment = "dev"
 aws_region  = "eu-central-1"
 
-# Karpenter version (deployed as dedicated resource before other Helm charts)
-#karpenter_version = "1.6.0"
+# =========================================
+# Karpenter Configuration
+# =========================================
+# Terraform-managed EC2NodeClass and NodePool
+karpenter = {
+  # EC2NodeClass: Defines how nodes are provisioned
+  node_class = {
+    name      = "default"
+    ami_family = "bottlerocket"  # Options: "bottlerocket", "al2", "ubuntu", "custom"
+    # ami_id   = null             # Only needed if ami_family = "custom"
+    node_tags = {
+      Environment = "dev"
+      ManagedBy   = "karpenter"
+    }
+  }
 
+  # NodePool: Defines scheduling constraints and instance types
+  node_pool = {
+    name        = "default"
+    description = "General purpose NodePool for generic workloads"
+    
+    # Instance configuration
+    instance_types = ["t3.medium", "t3.large"]  # Allowed instance types
+    capacity_types = ["spot", "on-demand"]      # Allow both spot and on-demand
+    architecture   = "amd64"                     # CPU architecture
+    
+    # Resource limits (removed - no limits on node scaling)
+    limits = null
+    
+    # Disruption policy (when/how to consolidate nodes)
+    disruption = {
+      consolidation_policy = "WhenEmptyOrUnderutilized"  # Options: "WhenEmpty", "WhenEmptyOrUnderutilized", "Never"
+      consolidate_after    = "30s"                       # Wait 30s before consolidating
+    }
+    
+    # Node labels (optional - applied to all nodes)
+    node_labels = {}
+    
+    # Taints (optional - prevent pods from scheduling unless they tolerate)
+    # taints = null
+    
+    # Weight (for multiple NodePools - higher = preferred)
+    weight = 10
+  }
+}
+
+# =========================================
+# VPC Configuration
+# =========================================
 vpcs = {
   hub = {
     vpc_version          = "~> 6.0"
     cidr                 = "10.10.0.0/16"
     public_subnet_bits   = 8 # /24 per AZ for public
     private_subnet_bits  = 8 # /24 per AZ for private
-    #enable_dns_hostnames = true
-    #enable_dns_support   = true
     enable_nat_gateway   = true
     single_nat_gateway   = true
     tags                 = { Purpose = "core-network" }
   }
 }
 
+# =========================================
+# ECR Repositories
+# =========================================
 ecr_repositories = {
   chatapp = {
     max_image_count = 30
@@ -27,6 +74,9 @@ ecr_repositories = {
   }
 }
 
+# =========================================
+# EKS Cluster Configuration
+# =========================================
 eks_clusters = {
   eks = {
     vpc_name                                 = "hub"
@@ -47,12 +97,7 @@ eks_clusters = {
         iam_role_additional_policies = {
           AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
         }
-        # Optional: Add SSH key for direct SSH access (create key pair first)
-        # key_name = "my-eks-key"
         labels = {
-          # "observability.io/node-type" = "system"
-          # "observability.io/capacity-type" = "spot"
-          # "observability.io/os" = "linux"
           "karpenter.sh/controller" = "true"
         }
         taints = {} # No taints for simplicity
@@ -72,7 +117,9 @@ eks_clusters = {
   }
 }
 
-# Helm charts configuration
+# =========================================
+# Helm Charts Configuration
+# =========================================
 helm = {
   karpenter = {
     chart            = "karpenter"
@@ -141,8 +188,62 @@ helm = {
     wait             = false
     upgrade          = true
   }
+  # Observability Stack - Deployed via Terraform (Best Practice)
+  prometheus = {
+    chart            = "kube-prometheus-stack"
+    repository       = "https://prometheus-community.github.io/helm-charts"
+    version          = "59.0.0"
+    create_namespace = true
+    namespace        = "monitoring"
+    wait             = true
+    timeout          = 600
+    upgrade          = true
+  }
+  jaeger = {
+    chart            = "jaeger"
+    repository       = "https://jaegertracing.github.io/helm-charts"
+    version          = "4.3.4"
+    create_namespace = true
+    namespace        = "monitoring"
+    wait             = true
+    timeout          = 300
+    upgrade          = true
+  }
+  otel-collector = {
+    chart            = "opentelemetry-collector"
+    repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    version          = "0.143.0"
+    create_namespace = true
+    namespace        = "monitoring"
+    wait             = true
+    timeout          = 300
+    upgrade          = true
+  }
+  loki = {
+    chart            = "loki"
+    repository       = "https://grafana.github.io/helm-charts"
+    version          = "6.49.0"
+    create_namespace = true
+    namespace        = "monitoring"
+    wait             = true
+    timeout          = 600
+    upgrade          = true
+  }
+  promtail = {
+    chart            = "promtail"
+    repository       = "https://grafana.github.io/helm-charts"
+    version          = "6.16.6"
+    create_namespace = true
+    namespace        = "monitoring"
+    wait             = true
+    timeout          = 300
+    upgrade          = true
+  }
 }
 
+# =========================================
+# Kubernetes Namespaces
+# =========================================
 eks_namespaces = {
   external-dns = {
     labels = {
@@ -151,7 +252,9 @@ eks_namespaces = {
   }
 }
 
-# Route 53 Configuration
+# =========================================
+# Route53 Configuration
+# =========================================
 route53_zones = {
   "tomernos.xyz" = {
     comment = "Main domain for observability project"

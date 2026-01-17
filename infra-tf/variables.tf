@@ -80,8 +80,87 @@ variable "route53_records" {
   default     = []
 }
 
-# variable "karpenter_version" {
-#   description = "Version of Karpenter Helm chart to deploy"
-#   type        = string
-#   default     = "1.6.0"
-# }
+# =========================================
+# Karpenter Configuration
+# =========================================
+variable "karpenter" {
+  description = "Karpenter configuration for EC2NodeClass and NodePool"
+  type = object({
+    # =========================================
+    # EC2NodeClass Configuration
+    # =========================================
+    node_class = object({
+      name = optional(string, "default")
+      # AMI selection - use alias for Bottlerocket (recommended) or specify AMI ID
+      ami_family = optional(string, "bottlerocket") # Options: "bottlerocket", "al2", "ubuntu", "custom"
+      ami_id      = optional(string, null)          # Custom AMI ID (if ami_family = "custom")
+      # Additional tags applied to nodes
+      node_tags = optional(map(string), {})
+    })
+
+    # =========================================
+    # NodePool Configuration
+    # =========================================
+    node_pool = object({
+      name        = optional(string, "default")
+      description = optional(string, "General purpose NodePool for generic workloads")
+      
+      # Instance configuration
+      instance_types = list(string) # e.g., ["t3.medium", "t3.large", "t3.xlarge"]
+      capacity_types = list(string) # e.g., ["spot", "on-demand"] or ["on-demand"]
+      architecture   = optional(string, "amd64") # Options: "amd64", "arm64"
+      
+      # Resource limits (optional - prevents runaway scaling)
+      limits = optional(object({
+        cpu    = optional(string, null)    # e.g., "1000" (total CPU cores)
+        memory = optional(string, null)    # e.g., "1000Gi" (total memory)
+      }), null)
+      
+      # Disruption policy (when/how to consolidate nodes)
+      disruption = optional(object({
+        consolidation_policy = optional(string, "WhenEmptyOrUnderutilized") # Options: "WhenEmpty", "WhenEmptyOrUnderutilized", "Never"
+        consolidate_after    = optional(string, "30s")                     # Wait time before consolidating
+      }), {
+        consolidation_policy = "WhenEmptyOrUnderutilized"
+        consolidate_after    = "30s"
+      })
+      
+      # Node labels (optional - applied to all nodes in this pool)
+      node_labels = optional(map(string), {})
+      
+      # Taints (optional - prevent pods from scheduling unless they tolerate)
+      taints = optional(list(object({
+        key    = string
+        value  = optional(string, null)
+        effect = string # Options: "NoSchedule", "PreferNoSchedule", "NoExecute"
+      })), null)
+      
+      # Weight (for multiple NodePools - higher weight = preferred for scheduling)
+      weight = optional(number, 10)
+    })
+  })
+
+  default = {
+    node_class = {
+      name      = "default"
+      ami_family = "bottlerocket"
+      ami_id     = null
+      node_tags  = {}
+    }
+    node_pool = {
+      name          = "default"
+      description   = "General purpose NodePool for generic workloads"
+      instance_types = ["t3.medium", "t3.large"]
+      capacity_types = ["spot", "on-demand"]
+      architecture   = "amd64"
+      limits         = null
+      disruption = {
+        consolidation_policy = "WhenEmptyOrUnderutilized"
+        consolidate_after    = "30s"
+      }
+      node_labels = {}
+      taints      = null
+      weight      = 10
+    }
+  }
+}

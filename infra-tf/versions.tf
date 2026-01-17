@@ -20,10 +20,18 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
-    # time = {
-    #   source  = "hashicorp/time"
-    #   version = "~> 0.12"
-    # }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 
   #required_version = ">= 1.0"
