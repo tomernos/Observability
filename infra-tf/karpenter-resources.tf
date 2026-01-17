@@ -88,18 +88,12 @@ resource "null_resource" "apply_karpenter_ec2nodeclass" {
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region}
-      kubectl apply -f ${self.triggers.filename}
-    EOT
+    command = "aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region} && kubectl apply -f ${self.triggers.filename}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = <<-EOT
-      aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${self.triggers.aws_region} || true
-      kubectl delete ec2nodeclass ${self.triggers.node_class_name} --ignore-not-found=true || true
-    EOT
+    command = "aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${self.triggers.aws_region} || true && kubectl delete ec2nodeclass ${self.triggers.node_class_name} --ignore-not-found=true || true"
   }
 
   depends_on = [
@@ -119,18 +113,12 @@ resource "null_resource" "apply_karpenter_nodepool" {
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region}
-      kubectl apply -f ${self.triggers.filename}
-    EOT
+    command = "aws eks update-kubeconfig --name ${local.cluster_name} --region ${var.aws_region} && kubectl apply -f ${self.triggers.filename}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = <<-EOT
-      aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${self.triggers.aws_region} || true
-      kubectl delete nodepool ${self.triggers.node_pool_name} --ignore-not-found=true || true
-    EOT
+    command = "aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${self.triggers.aws_region} || true && kubectl delete nodepool ${self.triggers.node_pool_name} --ignore-not-found=true || true"
   }
 
   depends_on = [
