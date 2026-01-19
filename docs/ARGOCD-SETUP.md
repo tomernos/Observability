@@ -500,3 +500,5 @@ kubectl get events -n chatapp-dev --sort-by='.lastTimestamp'
 - [ ] Notifications to Slack (optional)
 - [ ] Team trained
 
+
+

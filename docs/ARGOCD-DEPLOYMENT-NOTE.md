@@ -69,3 +69,5 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 This is the **best practice approach** for production systems.
 
+
+

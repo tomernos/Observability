@@ -409,3 +409,5 @@ ChatApplication/
 - [ ] Metrics flowing to Grafana
 - [ ] Team trained on GitOps workflow
 
+
+
